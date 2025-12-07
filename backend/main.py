@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from . import models, database
+import models, database
 
 # --- Pydantic Models for Data Validation ---
 
