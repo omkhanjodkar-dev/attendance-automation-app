@@ -18,112 +18,64 @@ app = FastAPI(
 
 # --- Pydantic Models for Data Validation ---
 
-class StockAnalysis(BaseModel):
-    symbol: str
-    recommendation: Literal["BUY", "SELL", "HOLD"]
-    confidence_score: float
-    analysis_date: datetime
-    summary: str
+class Login(BaseModel):
+    status: bool
 
-class StockDetails(BaseModel):
-    symbol: str
-    company_name: str
-    current_price: float
-    sector: str
-    pe_ratio: Optional[float] = None
+class Validated(BaseModel):
+    status: bool
 
-class PortfolioPosition(BaseModel):
-    symbol: str
-    quantity: int
-    average_price: float
-    current_value: float
+class AttendanceSession(BaseModel):
+    status: bool
 
-class AuditLog(BaseModel):
-    id: str
-    action: str
-    timestamp: datetime
-    details: str
-
-class OrderRequest(BaseModel):
-    symbol: str
-    side: Literal["buy", "sell"]
-    quantity: int = Field(..., gt=0, description="Must be a positive integer")
-    order_type: Literal["market", "limit"]
-    limit_price: Optional[float] = None
-
-class OrderResponse(BaseModel):
-    order_id: str
-    status: str
-    message: str
-    timestamp: datetime
-
-# --- Mock Data ---
-
-PORTFOLIO = [
-    {"symbol": "AAPL", "quantity": 10, "average_price": 150.00, "current_value": 1750.00},
-    {"symbol": "GOOGL", "quantity": 5, "average_price": 2800.00, "current_value": 14500.00},
-    {"symbol": "MSFT", "quantity": 15, "average_price": 300.00, "current_value": 4800.00}
-]
-
-AUDIT_LOGS = [
-    {"id": "log_001", "action": "LOGIN", "timestamp": datetime.now(), "details": "User logged in"},
-    {"id": "log_002", "action": "VIEW_PORTFOLIO", "timestamp": datetime.now(), "details": "Portfolio accessed"},
-]
+class AttendanceAdd(BaseModel):
+    status: bool
 
 # --- API Endpoints ---
 
 @app.get("/", tags=["General"])
 async def root():
-    return {"message": "Stock Trading Agent API is running. Visit /docs for Swagger UI."}
+    return {"message": "Attendance Automation App is running. Visit /docs for Swagger UI."}
 
-@app.get("/get_agent_analysis", response_model=StockAnalysis, tags=["Analysis"])
-async def get_agent_analysis(symbol: str = Query(..., description="Stock symbol to analyze")):
-    return super_agent(symbol)
-
-@app.get("/get_details_search_stock", response_model=StockDetails, tags=["Market Data"])
-async def get_details_search_stock(query: str):
-    return get_direct_stock_details(query)
-
-@app.get("/get_portfolio", response_model=List[PortfolioPosition], tags=["Account"])
-async def get_portfolio():
-    url = f"{BASE_URL}/positions"
-    headers = {
-        "APCA-API-KEY-ID": ALPACA_API_KEY,
-        "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY
-    }
-    response = requests.get(url, headers=headers)
-    return response.json()
-
-@app.get("/get_audit", response_model=List[AuditLog], tags=["Compliance"])
-async def get_audit(limit: int = 10):
-    """
-    Get system audit logs.
-    """
-    return AUDIT_LOGS[:limit]
-
-@app.post("/post_order", response_model=OrderResponse, tags=["Trading"])
-async def post_order(order: OrderRequest):
-    """
-    Place a new buy or sell order.
-    """
-    # Logic to validate order would go here (e.g., check funds, market status)
+@app.post("/check_student_login", response_model=Login, tags=["Authentication"])
+async def check_student_login(username: str, password: str):
+    #check student ids table in postgresql database
     
-    order_id = f"ord_{random.randint(1000, 9999)}"
-    
-    # Add to audit log (mock side effect)
-    AUDIT_LOGS.append({
-        "id": f"log_{random.randint(1000, 9999)}",
-        "action": "ORDER_PLACED",
-        "timestamp": datetime.now(),
-        "details": f"{order.side.upper()} {order.quantity} {order.symbol}"
-    })
-    
-    return {
-        "order_id": order_id,
-        "status": "filled",
-        "message": f"Successfully processed {order.side} order for {order.quantity} shares of {order.symbol}",
-        "timestamp": datetime.now()
-    }
+    return {"status": True}
+
+@app.post("/check_faculty_login", response_model=Login, tags=["Authentication"])
+async def check_faculty_login(username: str, password: str):
+    #check faculty ids table in postgresql database
+    return {"status": True}
+
+@app.post("/check_ssid", response_model=Validated, tags=["Authentication"])
+async def check_ssid(ssid: str, section: str):
+    #check ssid table in postgresql database for specified section
+    return {"status": True}
+
+@app.post("/check_attendance_session", response_model=AttendanceSession, tags=["Authentication"])
+async def check_attendance_session(section: str):
+    #check attendance session table in postgresql database for specified section
+    return {"status": True}
+
+@app.post("/add_attendance", response_model=AttendanceAdd, tags=["Attendance"])
+async def add_attendance(section : str, username : str, subject : str, date : str, time : str):
+    #add attendance to attendance table in postgresql database
+    return {"status": True}
+
+@app.get("/get_current_class", response_model=AttendanceSession, tags=["Attendance"])
+async def get_current_class(section: str):
+    #get current class from attendance table in postgresql database
+    return {"status": True}
+
+@app.post("/start_attendance_session", response_model=AttendanceSession, tags=["Attendance"])
+async def start_attendance_session(section: str):
+    #start attendance session in attendance table in postgresql database
+    return {"status": True}
+
+@app.post("/stop_attendance_session", response_model=AttendanceSession, tags=["Attendance"])
+async def stop_attendance_session(section: str):
+    #stop attendance session in attendance table in postgresql database
+    return {"status": True}
 
 # --- Server Entry Point ---
 

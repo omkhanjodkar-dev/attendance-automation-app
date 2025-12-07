@@ -140,11 +140,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final facultyBSSID = _attendanceService.activeFacultyHotspotBSSID;
+    final facultySSID = _attendanceService.activeFacultySSID;
     final activeClass = _attendanceService.activeClassName;
 
-    bool isFacultyHotspotAvailable = facultyBSSID != null &&
-        _availableNetworks.any((ap) => ap.bssid.toLowerCase() == facultyBSSID.toLowerCase());
+    // Check if any scanned network matches the faculty SSID (Case insensitive)
+    bool isFacultyHotspotAvailable = facultySSID != null &&
+        _availableNetworks.any((ap) => ap.ssid.toLowerCase() == facultySSID.toLowerCase());
 
     bool canMarkAttendance = !_isLoading && isFacultyHotspotAvailable;
 
@@ -161,7 +162,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.info, color: Colors.blue),
                     title: Text("Attendance for '$activeClass' is active."),
-                    subtitle: const Text("Connect to the faculty's hotspot to mark your attendance."),
+                    subtitle: Text(
+                        "Connect to the faculty's hotspot '$facultySSID' to mark your attendance."),
                   ),
                 ),
               const SizedBox(height: 10),
@@ -222,13 +224,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              if (facultyBSSID != null && !isFacultyHotspotAvailable)
+              if (facultySSID != null && !isFacultyHotspotAvailable)
                 Text(
-                  "Faculty hotspot for '$activeClass' not detected. Make sure you are in range.",
+                  "Faculty hotspot '$facultySSID' not detected. Make sure you are in range.",
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                 )
-              else if (facultyBSSID == null)
+              else if (facultySSID == null)
                 const Text(
                   "No active attendance session. Please wait for the faculty to start one.",
                   textAlign: TextAlign.center,
@@ -244,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: _availableNetworks.length,
                         itemBuilder: (context, index) {
                           final network = _availableNetworks[index];
-                          final isFacultyHotspot = facultyBSSID != null && network.bssid.toLowerCase() == facultyBSSID.toLowerCase();
+                          final isFacultyHotspot = facultySSID != null && network.ssid.toLowerCase() == facultySSID.toLowerCase();
                           return ListTile(
                             leading: Icon(isFacultyHotspot ? Icons.star : Icons.wifi, color: isFacultyHotspot ? Colors.green : null),
                             title: Text(network.ssid),

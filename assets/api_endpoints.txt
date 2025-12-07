@@ -1,0 +1,8 @@
+check_student_login
+check_faculty_login
+check_ssid (and mac id)
+check_attendance_session
+add_attendance
+get_current_class
+start_attendance_session
+stop_attendance_session

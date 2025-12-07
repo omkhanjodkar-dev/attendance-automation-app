@@ -7,6 +7,6 @@ class AttendanceService {
 
   AttendanceService._internal();
 
-  String? activeFacultyHotspotBSSID;
+  String? activeFacultySSID;
   String? activeClassName;
 }
