@@ -62,6 +62,10 @@ async def check_faculty_login(username: str, password: str, db: Session = Depend
     
     return {"status": True if faculty else False}
 
+class UpdateSSID(BaseModel):
+    section: str
+    ssid: str
+
 @app.get("/get_class_ssid", response_model=SSIDResponse, tags=["Authentication"])
 async def get_class_ssid(section: str, db: Session = Depends(database.get_db)):
     valid_hotspot = db.query(models.ClassHotspot).filter(
@@ -69,6 +73,21 @@ async def get_class_ssid(section: str, db: Session = Depends(database.get_db)):
     ).first()
     
     return {"ssid": valid_hotspot.ssid if valid_hotspot else None}
+
+@app.post("/update_class_ssid", response_model=Validated, tags=["Management"])
+async def update_class_ssid(data: UpdateSSID, db: Session = Depends(database.get_db)):
+    hotspot = db.query(models.ClassHotspot).filter(
+        models.ClassHotspot.section == data.section
+    ).first()
+    
+    if hotspot:
+        hotspot.ssid = data.ssid
+    else:
+        new_hotspot = models.ClassHotspot(section=data.section, ssid=data.ssid)
+        db.add(new_hotspot)
+    
+    db.commit()
+    return {"status": True}
 
 @app.get("/check_attendance_session", response_model=AttendanceSession, tags=["Authentication"])
 async def check_attendance_session(section: str, db: Session = Depends(database.get_db)):
