@@ -1,3 +1,4 @@
+import 'package:attendance_automation/attendance_service.dart';
 import 'package:attendance_automation/faculty_login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,12 +16,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
 
-  // Mock data for login
-  final String _validEmail = "test@example.com";
-  final String _validPassword = "password123";
-
   void _login() async {
-    if (_emailController.text == _validEmail && _passwordController.text == _validPassword) {
+    // Basic validation
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter both username and password."), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    // Call API
+    // Note: Assuming email field is username for this system
+    bool success = await AttendanceService().login(_emailController.text, _passwordController.text);
+
+    if (success) {
       // Save user info locally
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_email', _emailController.text);
@@ -33,13 +42,15 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
-      // Show error message for invalid credentials
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Invalid email or password."),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Login Failed. Incorrect username or password."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'faculty_dashboard_screen.dart';
+import 'attendance_service.dart';
 
 class FacultyLoginScreen extends StatefulWidget {
   const FacultyLoginScreen({super.key});
@@ -12,24 +13,35 @@ class _FacultyLoginScreenState extends State<FacultyLoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
+  final AttendanceService _attendanceService = AttendanceService();
 
-  // Mock data for faculty login
-  final String _validEmail = "faculty@example.com";
-  final String _validPassword = "faculty123";
+  Future<void> _login() async {
+    setState(() => _isLoading = true);
 
-  void _login() {
-    if (_emailController.text == _validEmail && _passwordController.text == _validPassword) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const FacultyDashboardScreen()),
-      );
+    bool success = await _attendanceService.facultyLogin(
+      _emailController.text, 
+      _passwordController.text
+    );
+
+    setState(() => _isLoading = false);
+
+    if (success) {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const FacultyDashboardScreen()),
+        );
+      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Invalid email or password."),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid email or password."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -88,7 +100,9 @@ class _FacultyLoginScreenState extends State<FacultyLoginScreen> {
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("LOGIN"),
+                  child: _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("LOGIN"),
                 ),
               )
             ],

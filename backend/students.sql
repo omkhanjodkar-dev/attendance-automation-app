@@ -1,0 +1,27 @@
+-- Bulk Import Students
+INSERT INTO students (username, password) VALUES ('variya.chugh25@pccoepune.org', '125B1B262') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('manav.joshi25@pccoepune.org', '125B1B263') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('harshit.dhonde25@pccoepune.org', '125B1B264') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('rajvaibhav.ozarkar25@pccoepune.org', '125B1B265') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('om.kharbas25@pccoepune.org', '125B1B266') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('vedant.rokamwar25@pccoepune.org', '125B1B267') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('sneha.vibhute25@pccoepune.org', '125B1B268') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('mayur.gunjal25@pccoepune.org', '125B1B269') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('anushka.gundale25@pccoepune.org', '125B1B270') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('aditya.lodhi25@pccoepune.org', '125B1B271') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('raju.vishnuvardhan25@pccoepune.org', '125B1B272') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('nikhil.satre25@pccoepune.org', '125B1B273') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('om.jilhawar25@pccoepune.org', '125B1B274') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('pallavi.ingle25@pccoepune.org', '125B1B275') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('deven.mahajan25@pccoepune.org', '125B1B276') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('kushal.chaudhari25@pccoepune.org', '125B1B277') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('siddhant.verma25@pccoepune.org', '125B1B278') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('sahil.ingale25@pccoepune.org', '125B1B279') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('sankalp.mohta25@pccoepune.org', '125B1B280') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('om.khanjodkar25@pccoepune.org', '125B1B283') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('abhinav.ramakrishnan25@pccoepune.org', '125B1B355') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('aditi.bhole25@pccoepune.org', '125B1B356') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('krushna.jadhav25@pccoepune.org', '125B1B357') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('abhishek.kumar25@pccoepune.org', '125B1B359') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('tanya.saxena25@pccoepune.org', '125B1B360') ON CONFLICT (username) DO NOTHING;
+INSERT INTO students (username, password) VALUES ('sakshi.walkulwad25@pccoepune.org', '124B1B033') ON CONFLICT (username) DO NOTHING;

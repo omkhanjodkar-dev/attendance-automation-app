@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wifi_scan/wifi_scan.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,17 +25,55 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   StreamSubscription<List<WiFiAccessPoint>>? _subscription;
   final AttendanceService _attendanceService = AttendanceService();
+  
+  // State variables for Class Session
+  String? _activeSubject;
+  String? _targetSSID;
+  String? _username;
 
   @override
   void initState() {
     super.initState();
-    _initSensors();
+    _loadUserAndSensors();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadUserAndSensors() async {
+     setState(() => _isLoading = true);
+     
+     // 1. Get Username
+     final prefs = await SharedPreferences.getInstance();
+     _username = prefs.getString('user_email') ?? "Unknown Student";
+
+     // 2. Initialize Sensors (GPS, Device ID)
+     await _initSensors();
+
+     // 3. Check for Active Class (Hardcoded Section 'Div-A' for MVP)
+     // In a real app, you would get this from the Student's profile
+     print("Checking for active session...");
+     String? subject = await _attendanceService.getActiveSession("A");
+     
+     if (subject != null) {
+        print("Active session found: $subject. Fetching SSID...");
+        // 4. Fetch the target SSID for this class
+        String? ssid = await _attendanceService.getClassSSID("A");
+        if (mounted) {
+            setState(() {
+                _activeSubject = subject;
+                _targetSSID = ssid;
+            });
+        }
+     } else {
+        print("No active session.");
+        if (mounted) setState(() { _activeSubject = null; _targetSSID = null; });
+     }
+
+     setState(() => _isLoading = false);
   }
 
   Future<void> _initSensors() async {
@@ -53,22 +92,27 @@ class _HomeScreenState extends State<HomeScreen> {
       id = iosInfo.identifierForVendor ?? "Unknown IOS";
     }
 
-    setState(() {
-      _deviceId = id;
-    });
+    if (mounted) {
+        setState(() {
+            _deviceId = id;
+        });
+    }
 
     _refreshSensors();
   }
 
   Future<void> _getScannedNetworks() async {
     final accessPoints = await WiFiScan.instance.getScannedResults();
-    setState(() {
-      _availableNetworks = accessPoints;
-    });
+    if (mounted) {
+        setState(() {
+            _availableNetworks = accessPoints;
+        });
+    }
   }
 
   Future<void> _refreshSensors() async {
-    setState(() => _isLoading = true);
+    // Only set loading if not already loading (to avoid flicker)
+    // setState(() => _isLoading = true);
 
     try {
       Position pos = await Geolocator.getCurrentPosition();
@@ -87,85 +131,130 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      setState(() {
-        _locationTxt = "Lat: ${pos.latitude.toStringAsFixed(4)}\nLng: ${pos.longitude.toStringAsFixed(4)}";
-        _wifiName = wifi ?? "Mobile Data / Not Connected";
-        _macAddress = bssid ?? "Unknown";
-        _isLoading = false;
-      });
+      if (mounted) {
+          setState(() {
+            _locationTxt = "Lat: ${pos.latitude.toStringAsFixed(4)}\nLng: ${pos.longitude.toStringAsFixed(4)}";
+            _wifiName = wifi ?? "Mobile Data / Not Connected";
+            _macAddress = bssid ?? "Unknown";
+            // _isLoading = false;
+          });
+      }
     } catch (e) {
-      setState(() {
-        _locationTxt = "Error getting location";
-        _wifiName = "Error getting Wi-Fi";
-        _macAddress = "Error getting MAC address";
-        _isLoading = false;
-      });
+      if (mounted) {
+          setState(() {
+            _locationTxt = "Error getting location";
+            _wifiName = "Error getting Wi-Fi";
+            _macAddress = "Error getting MAC address";
+            // _isLoading = false;
+          });
+      }
     }
   }
 
   Future<void> _markAttendance() async {
+    if (_activeSubject == null) return;
+    
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
+    
+    // Prepare Data
+    final now = DateTime.now();
+    final dateStr = "${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}";
+    final timeStr = "${now.hour.toString().padLeft(2,'0')}:${now.minute.toString().padLeft(2,'0')}:${now.second.toString().padLeft(2,'0')}";
+    
+    // Call API
+    print("Marking attendance for $_username in $_activeSubject...");
+    bool success = await _attendanceService.markAttendance(
+        section: "A", // Hardcoded for MVP
+        username: _username!, 
+        subject: _activeSubject!, 
+        date: dateStr, 
+        time: timeStr
+    );
 
     if (mounted) {
       setState(() => _isLoading = false);
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          icon: const Icon(Icons.check_circle, color: Colors.green, size: 50),
-          title: Text("Attendance Marked for ${_attendanceService.activeClassName}!"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Device: $_deviceId"),
-              const SizedBox(height: 5),
-              Text("Wi-Fi: $_wifiName"),
-              const SizedBox(height: 5),
-              Text("BSSID: $_macAddress"),
-              const SizedBox(height: 5),
-              const Text("Status: Verified ✅"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("OK"),
-            )
-          ],
-        ),
-      );
+      
+      if (success) {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              icon: const Icon(Icons.check_circle, color: Colors.green, size: 50),
+              title: Text("Attendance Marked for $_activeSubject!"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Student: $_username"),
+                  const SizedBox(height: 5),
+                  Text("Device: $_deviceId"),
+                  const SizedBox(height: 5),
+                  const Text("Status: Verified & Saved to Cloud ✅"),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
+                )
+              ],
+            ),
+          );
+      } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Failed to mark attendance. Server Error."), backgroundColor: Colors.red),
+          );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final facultySSID = _attendanceService.activeFacultySSID;
-    final activeClass = _attendanceService.activeClassName;
+    
+    // Validation Logic
+    // 1. Must implement scanning logic locally
+    bool isFacultyHotspotAvailable = false;
+    if (_targetSSID != null) {
+        // Check if TARGET SSID is in the scanned list
+        isFacultyHotspotAvailable = _availableNetworks.any((ap) => ap.ssid.toLowerCase() == _targetSSID!.toLowerCase());
+    }
 
-    // Check if any scanned network matches the faculty SSID (Case insensitive)
-    bool isFacultyHotspotAvailable = facultySSID != null &&
-        _availableNetworks.any((ap) => ap.ssid.toLowerCase() == facultySSID.toLowerCase());
-
-    bool canMarkAttendance = !_isLoading && isFacultyHotspotAvailable;
+    bool canMarkAttendance = !_isLoading && isFacultyHotspotAvailable && _activeSubject != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Student Dashboard")),
+      appBar: AppBar(
+          title: const Text("Student Dashboard"),
+          actions: [
+            IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadUserAndSensors,
+            )
+          ],
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              if (activeClass != null)
+              if (_activeSubject != null)
                 Card(
                   color: Colors.blue[50],
                   child: ListTile(
-                    leading: const Icon(Icons.info, color: Colors.blue),
-                    title: Text("Attendance for '$activeClass' is active."),
+                    leading: const Icon(Icons.class_, color: Colors.blue),
+                    title: Text("Class in Progress: $_activeSubject"),
                     subtitle: Text(
-                        "Connect to the faculty's hotspot '$facultySSID' to mark your attendance."),
+                        "Required Hotspot: '$_targetSSID'"),
+                  ),
+                )
+             else 
+                Card(
+                  color: Colors.orange[50],
+                  child: ListTile(
+                    leading: const Icon(Icons.timer_off, color: Colors.orange),
+                    title: const Text("No Active Class"),
+                    subtitle: const Text("Waiting for faculty to start a session..."),
                   ),
                 ),
+                
               const SizedBox(height: 10),
               Card(
                 elevation: 4,
@@ -175,33 +264,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     children: [
                       ListTile(
-                        leading: const Icon(Icons.perm_device_information, color: Colors.blue),
-                        title: const Text("Device ID"),
-                        subtitle: Text(_deviceId, style: const TextStyle(fontSize: 12)),
+                        leading: const Icon(Icons.person, color: Colors.blue),
+                        title: const Text("Logged in as"),
+                        subtitle: Text(_username ?? "Loading...", style: const TextStyle(fontSize: 14)),
                       ),
                       const Divider(),
                       ListTile(
                         leading: Icon(Icons.wifi, color: _wifiName.contains("Scanning") ? Colors.orange : Colors.green),
-                        title: const Text("Wi-Fi Network"),
+                        title: const Text("Your Wi-Fi"),
                         subtitle: Text(_wifiName),
                       ),
                       const Divider(),
-                      ListTile(
-                        leading: const Icon(Icons.network_check),
-                        title: const Text("Connected AP MAC Address"),
-                        subtitle: Text(_macAddress),
-                      ),
-                      const Divider(),
-                      ListTile(
+                       ListTile(
                         leading: const Icon(Icons.location_on, color: Colors.redAccent),
                         title: const Text("GPS Location"),
                         subtitle: Text(_locationTxt),
                       ),
                       const SizedBox(height: 10),
                       OutlinedButton.icon(
-                        onPressed: _refreshSensors,
+                        onPressed: _loadUserAndSensors,
                         icon: const Icon(Icons.refresh),
-                        label: const Text("Refresh Sensors"),
+                        label: const Text("Refresh Sensors & Session"),
                       )
                     ],
                   ),
@@ -220,24 +303,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("MARK PRESENT", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      : Text(canMarkAttendance ? "MARK PRESENT" : "SCANNING / NOT IN RANGE", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 20),
-              if (facultySSID != null && !isFacultyHotspotAvailable)
+              
+              // Status Messages
+              if (_activeSubject != null && !isFacultyHotspotAvailable)
                 Text(
-                  "Faculty hotspot '$facultySSID' not detected. Make sure you are in range.",
+                  "Faculty hotspot '$_targetSSID' NOT detected.\nEnsure you are in the classroom.",
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                )
-              else if (facultySSID == null)
-                const Text(
-                  "No active attendance session. Please wait for the faculty to start one.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                 ),
+                
               const SizedBox(height: 20),
-              const Text("Available Wi-Fi Networks:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text("Nearby Networks:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(
                 height: 200,
                 child: _availableNetworks.isEmpty
@@ -246,12 +326,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: _availableNetworks.length,
                         itemBuilder: (context, index) {
                           final network = _availableNetworks[index];
-                          final isFacultyHotspot = facultySSID != null && network.ssid.toLowerCase() == facultySSID.toLowerCase();
+                          final isTarget = _targetSSID != null && network.ssid.toLowerCase() == _targetSSID!.toLowerCase();
                           return ListTile(
-                            leading: Icon(isFacultyHotspot ? Icons.star : Icons.wifi, color: isFacultyHotspot ? Colors.green : null),
+                            leading: Icon(isTarget ? Icons.check_circle : Icons.wifi, color: isTarget ? Colors.green : null),
                             title: Text(network.ssid),
-                            subtitle: Text("BSSID: ${network.bssid}"),
-                            trailing: Text("${network.level} dBm"),
+                            subtitle: Text("${network.level} dBm"),
+                            tileColor: isTarget ? Colors.green[50] : null,
                           );
                         },
                       ),

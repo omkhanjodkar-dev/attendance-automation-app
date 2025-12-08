@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'attendance_service.dart';
+import 'package:attendance_automation/attendance_service.dart';
 import 'faculty_settings_screen.dart';
 
 class FacultyDashboardScreen extends StatefulWidget {
@@ -21,9 +20,9 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
   final AttendanceService _attendanceService = AttendanceService();
 
   Future<void> _startAttendance(String className) async {
-    // 1. Check for stored SSID
-    final prefs = await SharedPreferences.getInstance();
-    final String? ssid = prefs.getString('faculty_ssid');
+    // 1. Check for stored SSID via API
+    // Hardcoded section 'A' for MVP
+    final String? ssid = await _attendanceService.getClassSSID("A");
 
     if (ssid == null || ssid.isEmpty) {
       // 2. If no SSID, prompt to go to settings
@@ -83,38 +82,55 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
       );
 
       if (proceed == true) {
-        setState(() {
-          _attendanceService.activeFacultySSID = ssid;
-          _attendanceService.activeClassName = className;
-        });
+        // Start Session API Call
+        bool success = await _attendanceService.startSession("A", className);
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Attendance started for $className")),
-          );
+        if (success) {
+          setState(() {
+            _attendanceService.activeFacultySSID = ssid;
+            _attendanceService.activeClassName = className;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Attendance started for $className")),
+            );
+          }
+        } else {
+             if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Failed to start session. Server Error."), backgroundColor: Colors.red),
+                );
+             }
         }
       }
     }
   }
 
-  void _stopAttendance() {
+  Future<void> _stopAttendance() async {
+    // API Call to stop session
+    await _attendanceService.stopSession("A");
+
     setState(() {
       _attendanceService.activeFacultySSID = null;
       _attendanceService.activeClassName = null;
     });
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Attendance Stopped"),
-        content: const Text("Attendance has been stopped."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
-          )
-        ],
-      ),
-    );
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Attendance Stopped"),
+          content: const Text("Attendance has been stopped."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            )
+          ],
+        ),
+      );
+    }
   }
 
   void _openSettings() {

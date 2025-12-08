@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:attendance_automation/attendance_service.dart';
 
 class FacultySettingsScreen extends StatefulWidget {
   const FacultySettingsScreen({super.key});
@@ -11,6 +11,9 @@ class FacultySettingsScreen extends StatefulWidget {
 class _FacultySettingsScreenState extends State<FacultySettingsScreen> {
   final TextEditingController _ssidController = TextEditingController();
 
+  bool _isLoading = false;
+  final AttendanceService _attendanceService = AttendanceService();
+
   @override
   void initState() {
     super.initState();
@@ -18,20 +21,33 @@ class _FacultySettingsScreenState extends State<FacultySettingsScreen> {
   }
 
   Future<void> _loadSSID() async {
-    final prefs = await SharedPreferences.getInstance();
+    setState(() => _isLoading = true);
+    // Hardcoded section 'A' for MVP
+    String? ssid = await _attendanceService.getClassSSID("A");
     setState(() {
-      _ssidController.text = prefs.getString('faculty_ssid') ?? '';
+      _ssidController.text = ssid ?? '';
+      _isLoading = false;
     });
   }
 
   Future<void> _saveSSID() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('faculty_ssid', _ssidController.text.trim());
+    setState(() => _isLoading = true);
+    // Hardcoded section 'A' for MVP
+    bool success = await _attendanceService.updateClassSSID("A", _ssidController.text.trim());
+    
+    setState(() => _isLoading = false);
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hotspot Name (SSID) saved successfully')),
-      );
-      Navigator.pop(context, true); // Return true to indicate changes
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Hotspot Name (SSID) saved to cloud successfully')),
+        );
+        Navigator.pop(context, true); 
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save SSID. Network Error.'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -62,8 +78,10 @@ class _FacultySettingsScreenState extends State<FacultySettingsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _saveSSID,
-                child: const Text('Save'),
+                onPressed: _isLoading ? null : _saveSSID,
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Save to Cloud'),
               ),
             ),
           ],
