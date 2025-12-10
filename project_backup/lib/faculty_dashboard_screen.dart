@@ -11,13 +11,38 @@ class FacultyDashboardScreen extends StatefulWidget {
 
 class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
   final List<String> _classes = [
-    "Computer Science 101",
-    "Mathematics 203",
-    "Physics 301",
-    "History 110",
+    "CPPS",
+    "LAUC",
+    "ECH",
+    "DECO",
+    
   ];
+  
 
   final AttendanceService _attendanceService = AttendanceService();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkActiveSession();
+  }
+
+  Future<void> _checkActiveSession() async {
+    // 1. Check for Active Session
+    String? currentSubject = await _attendanceService.getActiveSession("A");
+    
+    // 2. Check for Stored SSID
+    String? storedSSID = await _attendanceService.getClassSSID("A");
+
+    if (currentSubject != null && storedSSID != null) {
+      if (mounted) {
+        setState(() {
+          _attendanceService.activeClassName = currentSubject;
+          _attendanceService.activeFacultySSID = storedSSID;
+        });
+      }
+    }
+  }
 
   Future<void> _startAttendance(String className) async {
     // 1. Check for stored SSID via API

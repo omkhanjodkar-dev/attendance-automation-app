@@ -1,6 +1,7 @@
 import 'dart:async'; // Import for StreamSubscription
 import 'dart:io';
 import 'package:attendance_automation/attendance_service.dart';
+import 'package:attendance_automation/student_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:network_info_plus/network_info_plus.dart';
@@ -227,7 +228,16 @@ class _HomeScreenState extends State<HomeScreen> {
             IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadUserAndSensors,
-            )
+            ),
+            IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const StudentSettingsScreen()),
+                  );
+                },
+            ),
           ],
       ),
       body: SingleChildScrollView(
@@ -241,8 +251,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.class_, color: Colors.blue),
                     title: Text("Class in Progress: $_activeSubject"),
-                    subtitle: Text(
-                        "Required Hotspot: '$_targetSSID'"),
                   ),
                 )
              else 
@@ -263,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(15),
                   child: Column(
                     children: [
-                      ListTile(
+                     /* ListTile(
                         leading: const Icon(Icons.person, color: Colors.blue),
                         title: const Text("Logged in as"),
                         subtitle: Text(_username ?? "Loading...", style: const TextStyle(fontSize: 14)),
@@ -279,12 +287,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         leading: const Icon(Icons.location_on, color: Colors.redAccent),
                         title: const Text("GPS Location"),
                         subtitle: Text(_locationTxt),
-                      ),
+                      ),*/
                       const SizedBox(height: 10),
                       OutlinedButton.icon(
                         onPressed: _loadUserAndSensors,
                         icon: const Icon(Icons.refresh),
-                        label: const Text("Refresh Sensors & Session"),
+                        label: const Text("Refresh"),
                       )
                     ],
                   ),
@@ -303,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(canMarkAttendance ? "MARK PRESENT" : "SCANNING / NOT IN RANGE", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : Text(canMarkAttendance ? "MARK PRESENT" : "ATTENDANCE DISABLED...", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -311,13 +319,13 @@ class _HomeScreenState extends State<HomeScreen> {
               // Status Messages
               if (_activeSubject != null && !isFacultyHotspotAvailable)
                 Text(
-                  "Faculty hotspot '$_targetSSID' NOT detected.\nEnsure you are in the classroom.",
+                  "Ensure that you are in the classroom.",
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                 ),
                 
               const SizedBox(height: 20),
-              const Text("Nearby Networks:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text("", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(
                 height: 200,
                 child: _availableNetworks.isEmpty
@@ -327,12 +335,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemBuilder: (context, index) {
                           final network = _availableNetworks[index];
                           final isTarget = _targetSSID != null && network.ssid.toLowerCase() == _targetSSID!.toLowerCase();
-                          return ListTile(
+                          /*return ListTile(
                             leading: Icon(isTarget ? Icons.check_circle : Icons.wifi, color: isTarget ? Colors.green : null),
                             title: Text(network.ssid),
                             subtitle: Text("${network.level} dBm"),
                             tileColor: isTarget ? Colors.green[50] : null,
-                          );
+                          );*/
                         },
                       ),
               ),
