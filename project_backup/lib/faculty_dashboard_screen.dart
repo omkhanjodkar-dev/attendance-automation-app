@@ -28,19 +28,32 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
   }
 
   Future<void> _checkActiveSession() async {
-    // 1. Check for Active Session
-    String? currentSubject = await _attendanceService.getActiveSession("A");
-    
-    // 2. Check for Stored SSID
-    String? storedSSID = await _attendanceService.getClassSSID("A");
+    // Check if we even have a token first
+    final token = await _attendanceService.getToken();
+    if (token == null) {
+      // No token - user needs to re-login
+      return;
+    }
 
-    if (currentSubject != null && storedSSID != null) {
-      if (mounted) {
-        setState(() {
-          _attendanceService.activeClassName = currentSubject;
-          _attendanceService.activeFacultySSID = storedSSID;
-        });
+    try {
+      // 1. Check for Active Session
+      String? currentSubject = await _attendanceService.getActiveSession("A");
+      
+      // 2. Check for Stored SSID
+      String? storedSSID = await _attendanceService.getClassSSID("A");
+
+      // Only update state if BOTH are successfully retrieved
+      if (currentSubject != null && storedSSID != null) {
+        if (mounted) {
+          setState(() {
+            _attendanceService.activeClassName = currentSubject;
+            _attendanceService.activeFacultySSID = storedSSID;
+          });
+        }
       }
+    } catch (e) {
+      // API failed - don't set any state
+      print("Failed to check active session: $e");
     }
   }
 
