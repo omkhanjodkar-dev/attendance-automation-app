@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:attendance_automation/attendance_service.dart';
 import 'login_screen.dart';
 
 class StudentSettingsScreen extends StatefulWidget {
@@ -12,6 +12,7 @@ class StudentSettingsScreen extends StatefulWidget {
 class _StudentSettingsScreenState extends State<StudentSettingsScreen> {
   String? _username;
   bool _isLoading = true;
+  final AttendanceService _attendanceService = AttendanceService();
 
   @override
   void initState() {
@@ -20,16 +21,15 @@ class _StudentSettingsScreenState extends State<StudentSettingsScreen> {
   }
 
   Future<void> _loadUserInfo() async {
-    final prefs = await SharedPreferences.getInstance();
+    final username = await _attendanceService.getUsername();
     setState(() {
-      _username = prefs.getString('user_email') ?? 'Unknown';
+      _username = username ?? 'Unknown';
       _isLoading = false;
     });
   }
 
   Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await _attendanceService.logout();
     
     if (mounted) {
       Navigator.pushAndRemoveUntil(
