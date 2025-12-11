@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AttendanceService {
   static final AttendanceService _instance = AttendanceService._internal();
@@ -10,23 +11,59 @@ class AttendanceService {
 
   AttendanceService._internal();
 
+  // Secure storage for JWT tokens
+  final _storage = const FlutterSecureStorage();
+
   // Variables to hold state during the app session
   String? activeFacultySSID;
   String? activeClassName;
   
-  // The Base URL for the Render Backend
-  final String _baseUrl = "https://attendance-automation-app.onrender.com";
+  // Server URLs
+  final String _authBaseUrl = "https://attendance-automation-app-auth.onrender.com";
+  final String _resourceBaseUrl = "https://attendance-automation-app.onrender.com";
+
+  // ========== JWT Token Management ==========
+
+  Future<void> saveToken(String token) async {
+    await _storage.write(key: 'access_token', value: token);
+  }
+
+  Future<String?> getToken() async {
+    return await _storage.read(key: 'access_token');
+  }
+
+  Future<void> saveUsername(String username) async {
+    await _storage.write(key: 'username', value: username);
+  }
+
+  Future<String?> getUsername() async {
+    return await _storage.read(key: 'username');
+  }
+
+  Future<void> logout() async {
+    await _storage.delete(key: 'access_token');
+    await _storage.delete(key: 'username');
+    activeFacultySSID = null;
+    activeClassName = null;
+  }
+
+  // ========== Authentication (Auth Server) ==========
 
   // 1. Student Login
   Future<bool> login(String username, String password) async {
-    final url = Uri.parse("$_baseUrl/check_student_login?username=$username&password=$password");
+    final url = Uri.parse("$_authBaseUrl/check_student_login?username=$username&password=$password");
     
     try {
       final response = await http.post(url);
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['status'] == true;
+        if (data['status'] == true) {
+          // Store JWT token and username
+          await saveToken(data['access_token']);
+          await saveUsername(username);
+          return true;
+        }
       }
     } catch (e) {
       print("Login Error: $e");
@@ -36,14 +73,19 @@ class AttendanceService {
 
   // 1.5 Faculty Login
   Future<bool> facultyLogin(String username, String password) async {
-    final url = Uri.parse("$_baseUrl/check_faculty_login?username=$username&password=$password");
+    final url = Uri.parse("$_authBaseUrl/check_faculty_login?username=$username&password=$password");
     
     try {
       final response = await http.post(url);
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['status'] == true;
+        if (data['status'] == true) {
+          // Store JWT token and username
+          await saveToken(data['access_token']);
+          await saveUsername(username);
+          return true;
+        }
       }
     } catch (e) {
       print("Faculty Login Error: $e");
@@ -51,12 +93,35 @@ class AttendanceService {
     return false;
   }
 
+  // ========== Resource API Calls (With JWT) ==========
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final token = await getToken();
+    return {
+      "Authorization": "Bearer $token",
+      "Content-Type": "application/json",
+    };
+  }
+
+  Future<bool> _handleUnauthorized(http.Response response) async {
+    if (response.statusCode == 403) {
+      // Token expired or invalid
+      print("Token expired - logging out");
+      await logout();
+      return true; // Indicates logout happened
+    }
+    return false;
+  }
+
   // 2. Check for Active Session (Returns Subject Name or null)
   Future<String?> getActiveSession(String section) async {
-    final url = Uri.parse("$_baseUrl/get_current_class?section=$section");
+    final url = Uri.parse("$_resourceBaseUrl/get_current_class?section=$section");
+    final headers = await _getAuthHeaders();
     
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: headers);
+      
+      if (await _handleUnauthorized(response)) return null;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -74,10 +139,13 @@ class AttendanceService {
 
   // 3. Get Target SSID (Security Check)
   Future<String?> getClassSSID(String section) async {
-    final url = Uri.parse("$_baseUrl/get_class_ssid?section=$section");
+    final url = Uri.parse("$_resourceBaseUrl/get_class_ssid?section=$section");
+    final headers = await _getAuthHeaders();
     
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: headers);
+      
+      if (await _handleUnauthorized(response)) return null;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -93,14 +161,17 @@ class AttendanceService {
 
   // 3.5 Update Class SSID
   Future<bool> updateClassSSID(String section, String ssid) async {
-    final url = Uri.parse("$_baseUrl/update_class_ssid");
+    final url = Uri.parse("$_resourceBaseUrl/update_class_ssid");
+    final headers = await _getAuthHeaders();
     
     try {
       final response = await http.post(
         url,
-        headers: {"Content-Type": "application/json"},
+        headers: headers,
         body: jsonEncode({"section": section, "ssid": ssid}),
       );
+      
+      if (await _handleUnauthorized(response)) return false;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -114,10 +185,13 @@ class AttendanceService {
 
   // 3.6 Start Attendance Session
   Future<bool> startSession(String section, String subject) async {
-    final url = Uri.parse("$_baseUrl/start_attendance_session?section=$section&subject=$subject");
+    final url = Uri.parse("$_resourceBaseUrl/start_attendance_session?section=$section&subject=$subject");
+    final headers = await _getAuthHeaders();
     
     try {
-      final response = await http.post(url);
+      final response = await http.post(url, headers: headers);
+      
+      if (await _handleUnauthorized(response)) return false;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -131,10 +205,13 @@ class AttendanceService {
 
   // 3.7 Stop Attendance Session
   Future<bool> stopSession(String section) async {
-    final url = Uri.parse("$_baseUrl/stop_attendance_session?section=$section");
+    final url = Uri.parse("$_resourceBaseUrl/stop_attendance_session?section=$section");
+    final headers = await _getAuthHeaders();
     
     try {
-      final response = await http.post(url);
+      final response = await http.post(url, headers: headers);
+      
+      if (await _handleUnauthorized(response)) return false;
       
       if (response.statusCode == 200) {
         // The API returns status: False when stopped (session is no longer active)
@@ -155,10 +232,6 @@ class AttendanceService {
     required String date,
     required String time
   }) async {
-    // Note: Our backend expects query params for this MVP endpoint 
-    // based on how we wrote main.py:
-    // async def add_attendance(section, username, ...) 
-    
     // Construct URL with Query Parameters
     final queryParams = Uri(queryParameters: {
       "section": section,
@@ -168,10 +241,13 @@ class AttendanceService {
       "time": time,
     }).query;
 
-    final url = Uri.parse("$_baseUrl/add_attendance?$queryParams");
+    final url = Uri.parse("$_resourceBaseUrl/add_attendance?$queryParams");
+    final headers = await _getAuthHeaders();
 
     try {
-      final response = await http.post(url);
+      final response = await http.post(url, headers: headers);
+      
+      if (await _handleUnauthorized(response)) return false;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

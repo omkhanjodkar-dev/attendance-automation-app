@@ -37,6 +37,7 @@ dependencies:
   permission_handler: ^11.0.1
   # Local Storage & Fonts
   shared_preferences: ^2.2.1
+  flutter_secure_storage: ^9.0.0
   google_fonts: ^6.1.0
   # Networking (kept for later)
   dio: ^5.3.0
