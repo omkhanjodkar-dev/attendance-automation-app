@@ -33,6 +33,9 @@ class _LoginScreenState extends State<LoginScreen> {
       // Save user info locally
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_email', _emailController.text);
+      
+      // Save role for auto-login
+      await AttendanceService().saveRole('student');
 
       // Navigate to Dashboard
       if (mounted) {

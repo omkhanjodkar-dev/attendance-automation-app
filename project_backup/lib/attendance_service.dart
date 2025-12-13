@@ -40,9 +40,37 @@ class AttendanceService {
     return await _storage.read(key: 'username');
   }
 
+  Future<void> saveRole(String role) async {
+    await _storage.write(key: 'user_role', value: role);
+  }
+
+  Future<String?> getRole() async {
+    return await _storage.read(key: 'user_role');
+  }
+
+  Future<bool> validateToken() async {
+    final token = await getToken();
+    if (token == null) return false;
+    
+    // Make a lightweight API call to verify token validity
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.get(
+        Uri.parse("$_resourceBaseUrl/get_current_class?section=A"),
+        headers: headers
+      );
+      // Token is valid if we don't get a 403 (forbidden) response
+      return response.statusCode != 403;
+    } catch (e) {
+      print("Token validation error: $e");
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _storage.delete(key: 'access_token');
     await _storage.delete(key: 'username');
+    await _storage.delete(key: 'user_role');
     activeFacultySSID = null;
     activeClassName = null;
   }

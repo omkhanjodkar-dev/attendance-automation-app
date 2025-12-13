@@ -185,17 +185,8 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Faculty Dashboard"),
+        automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await _attendanceService.logout();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/');
-              }
-            },
-            tooltip: 'Logout',
-          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _openSettings,

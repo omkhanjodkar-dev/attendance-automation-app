@@ -56,6 +56,18 @@ class _FacultySettingsScreenState extends State<FacultySettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Faculty Settings'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await _attendanceService.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/');
+              }
+            },
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

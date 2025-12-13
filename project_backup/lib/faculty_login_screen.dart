@@ -27,6 +27,9 @@ class _FacultyLoginScreenState extends State<FacultyLoginScreen> {
     setState(() => _isLoading = false);
 
     if (success) {
+      // Save role for auto-login
+      await _attendanceService.saveRole('faculty');
+      
       if (mounted) {
         Navigator.pushReplacement(
           context,
