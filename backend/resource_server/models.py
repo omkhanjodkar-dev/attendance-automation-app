@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Time, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Time, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from database import Base
 
@@ -26,10 +26,16 @@ class AttendanceRecord(Base):
     __tablename__ = "attendance_records"
 
     id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey('active_sessions.id'), nullable=True, index=True)  # Nullable for migration
     section = Column(String)
-    username = Column(String)
+    username = Column(String, index=True)
     subject = Column(String)
     status = Column(String, default="Present")
     date = Column(Date)
     time = Column(Time)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Unique constraint: one attendance per student per session
+    __table_args__ = (
+        UniqueConstraint('session_id', 'username', name='unique_attendance_per_session'),
+    )
