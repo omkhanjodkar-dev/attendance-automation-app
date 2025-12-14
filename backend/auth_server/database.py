@@ -15,6 +15,7 @@ if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Create engine with connection pool configuration for production
+# Note: Neon pooler doesn't support statement_timeout in options
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     pool_pre_ping=True,           # Test connections before using them
@@ -22,8 +23,7 @@ engine = create_engine(
     pool_size=10,                  # Number of connections to maintain
     max_overflow=20,               # Allow up to 20 additional connections
     connect_args={
-        "connect_timeout": 10,     # Connection timeout in seconds
-        "options": "-c statement_timeout=30000"  # Query timeout (30 seconds)
+        "connect_timeout": 10      # Connection timeout in seconds
     }
 )
 
