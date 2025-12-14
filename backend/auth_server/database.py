@@ -14,7 +14,18 @@ SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Pass%
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Create engine with connection pool configuration for production
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,           # Test connections before using them
+    pool_recycle=3600,             # Recycle connections after 1 hour
+    pool_size=10,                  # Number of connections to maintain
+    max_overflow=20,               # Allow up to 20 additional connections
+    connect_args={
+        "connect_timeout": 10,     # Connection timeout in seconds
+        "options": "-c statement_timeout=30000"  # Query timeout (30 seconds)
+    }
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

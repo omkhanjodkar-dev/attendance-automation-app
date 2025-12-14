@@ -1,0 +1,14 @@
+This is a comprehensive, automated attendance system. It consists of a Flutter mobile application for students and faculty, and a Python backend for the business logic and data management.
+
+Key components:
+
+Flutter Frontend (attendance_automation):
+Provides separate interfaces for "students" and "faculty".
+Uses Wi-Fi SSID scanning (wifi_scan) and possibly geolocation (geolocator) to verify a student's presence.
+Features secure login and session management.
+
+Python Backend (FastAPI):
+Authentication Server (auth_server): Manages user login, logout, and token-based authentication.
+Resource Server (resource_server): Handles core functionalities like starting/stopping attendance sessions, managing the Wi-Fi SSID for classes, and recording attendance.
+
+The overall architecture is a client-server model where the Flutter app communicates with the FastAPI backend. It appears to be a well-structured and complete project.

@@ -9,12 +9,21 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
 def decode_jwt(token: str) -> dict:
     """
     Decode and verify JWT token.
+    Only accepts ACCESS tokens (not refresh tokens).
     Returns decoded payload if valid, None otherwise.
     """
     try:
         decoded_token = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
+        # CRITICAL: Only accept access tokens on resource endpoints
+        if decoded_token.get("type") != "access":
+            return None
+        
+        # Check expiry
         return decoded_token if decoded_token.get("expiry", 0) >= __import__('time').time() else None
-    except:
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
         return None
 
 class JWTBearer(HTTPBearer):

@@ -24,12 +24,23 @@ class AttendanceService {
 
   // ========== JWT Token Management ==========
 
+  // Save both access and refresh tokens
+  Future<void> saveTokens(String accessToken, String refreshToken) async {
+    await _storage.write(key: 'access_token', value: accessToken);
+    await _storage.write(key: 'refresh_token', value: refreshToken);
+  }
+
+  // Legacy method for backward compatibility
   Future<void> saveToken(String token) async {
     await _storage.write(key: 'access_token', value: token);
   }
 
   Future<String?> getToken() async {
     return await _storage.read(key: 'access_token');
+  }
+
+  Future<String?> getRefreshToken() async {
+    return await _storage.read(key: 'refresh_token');
   }
 
   Future<void> saveUsername(String username) async {
@@ -67,8 +78,48 @@ class AttendanceService {
     }
   }
 
+  // Refresh access token using refresh token
+  Future<bool> refreshAccessToken() async {
+    final refreshToken = await getRefreshToken();
+    if (refreshToken == null) return false;
+    
+    try {
+      final response = await http.post(
+        Uri.parse("$_authBaseUrl/refresh"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"refresh_token": refreshToken}),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await saveTokens(data['access_token'], data['refresh_token']);
+        return true;
+      }
+    } catch (e) {
+      print("Refresh token error: $e");
+    }
+    
+    return false;
+  }
+
   Future<void> logout() async {
+    // Revoke refresh token on server
+    final refreshToken = await getRefreshToken();
+    if (refreshToken != null) {
+      try {
+        await http.post(
+          Uri.parse("$_authBaseUrl/logout"),
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({"refresh_token": refreshToken}),
+        );
+      } catch (e) {
+        print("Logout error: $e");
+      }
+    }
+    
+    // Clear local storage
     await _storage.delete(key: 'access_token');
+    await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'username');
     await _storage.delete(key: 'user_role');
     activeFacultySSID = null;
@@ -86,12 +137,10 @@ class AttendanceService {
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == true) {
-          // Store JWT token and username
-          await saveToken(data['access_token']);
-          await saveUsername(username);
-          return true;
-        }
+        // New API returns both tokens
+        await saveTokens(data['access_token'], data['refresh_token']);
+        await saveUsername(username);
+        return true;
       }
     } catch (e) {
       print("Login Error: $e");
@@ -108,12 +157,10 @@ class AttendanceService {
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == true) {
-          // Store JWT token and username
-          await saveToken(data['access_token']);
-          await saveUsername(username);
-          return true;
-        }
+        // New API returns both tokens
+        await saveTokens(data['access_token'], data['refresh_token']);
+        await saveUsername(username);
+        return true;
       }
     } catch (e) {
       print("Faculty Login Error: $e");
@@ -132,13 +179,22 @@ class AttendanceService {
   }
 
   Future<bool> _handleUnauthorized(http.Response response) async {
-    if (response.statusCode == 403) {
-      // Token expired or invalid
-      print("Token expired - logging out");
-      await logout();
-      return true; // Indicates logout happened
+    if (response.statusCode == 401) {
+      // Access token expired - try to refresh
+      print("Access token expired - attempting refresh");
+      bool refreshed = await refreshAccessToken();
+      
+      if (refreshed) {
+        print("Token refreshed successfully");
+        return false; // Token refreshed, caller should retry the request
+      } else {
+        // Refresh failed - logout
+        print("Token refresh failed - logging out");
+        await logout();
+        return true; // Logout happened
+      }
     }
-    return false;
+    return false; // No logout needed
   }
 
   // 2. Check for Active Session (Returns Subject Name or null)

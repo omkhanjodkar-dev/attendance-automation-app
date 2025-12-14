@@ -329,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(
                 height: 200,
                 child: _availableNetworks.isEmpty
-                    ? const Center(child: Text("Scanning for networks..."))
+                    ? const Center(child: Text(""))
                     : ListView.builder(
                         itemCount: _availableNetworks.length,
                         itemBuilder: (context, index) {
