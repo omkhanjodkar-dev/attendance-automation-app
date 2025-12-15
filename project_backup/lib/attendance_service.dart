@@ -197,8 +197,8 @@ class AttendanceService {
     return false; // No logout needed
   }
 
-  // 2. Check for Active Session (Returns Subject Name + Session ID or null)
-  Future<Map<String, dynamic>?> getActiveSession(String section) async {
+  // 2. Check for Active Session (Returns Subject Name or null)
+  Future<String?> getActiveSession(String section) async {
     final url = Uri.parse("$_resourceBaseUrl/get_current_class?section=$section");
     final headers = await _getAuthHeaders();
     
@@ -211,11 +211,7 @@ class AttendanceService {
         final data = jsonDecode(response.body);
         if (data['status'] == true) {
           activeClassName = data['subject'];
-          return {
-            "subject": data['subject'],
-            "session_id": data['session_id'],
-            "status": true
-          };
+          return data['subject'];
         }
       }
     } catch (e) {
@@ -312,14 +308,13 @@ class AttendanceService {
     return false;
   }
 
-  // 4. Mark Attendance (with session_id to prevent duplicates)
-  Future<Map<String, dynamic>> markAttendance({
+  // 4. Mark Attendance
+  Future<bool> markAttendance({
     required String section,
     required String username, 
     required String subject,
     required String date,
-    required String time,
-    required int sessionId  // NEW: session_id parameter
+    required String time
   }) async {
     // Construct URL with Query Parameters
     final queryParams = Uri(queryParameters: {
@@ -328,7 +323,6 @@ class AttendanceService {
       "subject": subject,
       "date": date,
       "time": time,
-      "session_id": sessionId.toString(),  // NEW
     }).query;
 
     final url = Uri.parse("$_resourceBaseUrl/add_attendance?$queryParams");
@@ -337,45 +331,15 @@ class AttendanceService {
     try {
       final response = await http.post(url, headers: headers);
       
-      if (await _handleUnauthorized(response)) {
-        return {"success": false, "message": "Unauthorized"};
-      }
+      if (await _handleUnauthorized(response)) return false;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return {
-          "success": data['status'] == true,
-          "already_marked": data['already_marked'] ?? false,
-          "marked_at": data['marked_at'] ?? "",
-          "message": data['message'] ?? "Success"
-        };
+        return data['status'] == true;
       }
     } catch (e) {
       print("Marking Error: $e");
     }
-    return {"success": false, "message": "Failed to mark attendance"};
-  }
-
-  // 4.5 Check if attendance already marked for session
-  Future<Map<String, dynamic>> checkAttendanceStatus(String username, int sessionId) async {
-    final url = Uri.parse(
-      "$_resourceBaseUrl/check_attendance_status?username=$username&session_id=$sessionId"
-    );
-    final headers = await _getAuthHeaders();
-    
-    try {
-      final response = await http.get(url, headers: headers);
-      
-      if (await _handleUnauthorized(response)) {
-        return {"marked": false};
-      }
-      
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-    } catch (e) {
-      print("Check Attendance Status Error: $e");
-    }
-    return {"marked": false};
+    return false;
   }
 }

@@ -78,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 20),
               const Text("Student Login", style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              const Text("NoProxy System", style: TextStyle(color: Colors.grey)),
+              const Text("WaveLog System", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 40),
               TextField(
                 controller: _emailController,

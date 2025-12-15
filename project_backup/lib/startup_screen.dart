@@ -24,33 +24,50 @@ class _StartupScreenState extends State<StartupScreen> {
     // Small delay for splash effect
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // 1. Check if token exists
-    final token = await _attendanceService.getToken();
+    // 1. Check if tokens exist
+    final accessToken = await _attendanceService.getToken();
+    final refreshToken = await _attendanceService.getRefreshToken();
     final role = await _attendanceService.getRole();
 
-    if (token == null || role == null) {
-      // No token or role stored - go to login
+    if (accessToken == null || refreshToken == null || role == null) {
+      // No tokens stored - go to login
       _navigateToLogin();
       return;
     }
 
-    // 2. Validate token with API call
+    // 2. Try to validate access token (lightweight API call)
     final isValid = await _attendanceService.validateToken();
 
-    if (!isValid) {
-      // Token expired or invalid - clear and go to login
-      await _attendanceService.logout();
-      _navigateToLogin();
+    if (isValid) {
+      // Access token is valid - navigate directly
+      if (role == 'student') {
+        _navigateToStudentDashboard();
+      } else if (role == 'faculty') {
+        _navigateToFacultyDashboard();
+      } else {
+        _navigateToLogin();
+      }
       return;
     }
 
-    // 3. Token is valid - navigate to appropriate dashboard
-    if (role == 'student') {
-      _navigateToStudentDashboard();
-    } else if (role == 'faculty') {
-      _navigateToFacultyDashboard();
+    // 3. Access token expired - try to refresh
+    print("Access token expired, attempting refresh...");
+    final refreshed = await _attendanceService.refreshAccessToken();
+
+    if (refreshed) {
+      // Refresh successful - navigate to dashboard
+      print("Token refresh successful!");
+      if (role == 'student') {
+        _navigateToStudentDashboard();
+      } else if (role == 'faculty') {
+        _navigateToFacultyDashboard();
+      } else {
+        _navigateToLogin();
+      }
     } else {
-      // Unknown role - go to login
+      // Refresh failed - refresh token likely expired
+      print("Token refresh failed - logging out");
+      await _attendanceService.logout();
       _navigateToLogin();
     }
   }
@@ -97,7 +114,7 @@ class _StartupScreenState extends State<StartupScreen> {
             ),
             const SizedBox(height: 20),
             const Text(
-              'NoProxy Attendance',
+              'WaveLog Attendance',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,

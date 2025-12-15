@@ -31,11 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _activeSubject;
   String? _targetSSID;
   String? _username;
-  
-  // NEW: Session-based attendance tracking
-  int? _sessionId;
-  bool _alreadyMarked = false;
-  String _markedTime = "";
 
   @override
   void initState() {
@@ -62,35 +57,21 @@ class _HomeScreenState extends State<HomeScreen> {
      // 3. Check for Active Class (Hardcoded Section 'Div-A' for MVP)
      // In a real app, you would get this from the Student's profile
      print("Checking for active session...");
-     Map<String, dynamic>? sessionData = await _attendanceService.getActiveSession("A");
+     String? subject = await _attendanceService.getActiveSession("A");
      
-     if (sessionData != null && sessionData['status'] == true) {
-        print("Active session found: ${sessionData['subject']}. Fetching SSID...");
+     if (subject != null) {
+        print("Active session found: $subject. Fetching SSID...");
         // 4. Fetch the target SSID for this class
         String? ssid = await _attendanceService.getClassSSID("A");
-        
         if (mounted) {
             setState(() {
-                _activeSubject = sessionData['subject'];
-                _sessionId = sessionData['session_id'];
+                _activeSubject = subject;
                 _targetSSID = ssid;
             });
         }
-        
-        // 5. Check if already marked attendance for this session
-        if (_sessionId != null) {
-          await _checkAttendanceStatus();
-        }
      } else {
         print("No active session.");
-        if (mounted) {
-          setState(() { 
-            _activeSubject = null; 
-            _targetSSID = null;
-            _sessionId = null;
-            _alreadyMarked = false;
-          });
-        }
+        if (mounted) setState(() { _activeSubject = null; _targetSSID = null; });
      }
 
      setState(() => _isLoading = false);
@@ -119,25 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     _refreshSensors();
-  }
-  
-  // NEW: Check if attendance already marked for current session
-  Future<void> _checkAttendanceStatus() async {
-    if (_sessionId == null || _username == null) return;
-    
-    print("Checking attendance status for session $_sessionId...");
-    final status = await _attendanceService.checkAttendanceStatus(_username!, _sessionId!);
-    
-    if (mounted) {
-      setState(() {
-        _alreadyMarked = status['marked'] ?? false;
-        _markedTime = status['marked_at'] ?? "";
-      });
-      
-      if (_alreadyMarked) {
-        print("Attendance already marked at $_markedTime");
-      }
-    }
   }
 
   Future<void> _getScannedNetworks() async {
@@ -191,18 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _markAttendance() async {
-    if (_activeSubject == null || _sessionId == null) return;
-    
-    // Don't allow marking if already marked
-    if (_alreadyMarked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("You have already marked attendance at $_markedTime"),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+    if (_activeSubject == null) return;
     
     setState(() => _isLoading = true);
     
@@ -211,76 +162,47 @@ class _HomeScreenState extends State<HomeScreen> {
     final dateStr = "${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}";
     final timeStr = "${now.hour.toString().padLeft(2,'0')}:${now.minute.toString().padLeft(2,'0')}:${now.second.toString().padLeft(2,'0')}";
     
-    // Call API (NEW: with sessionId)
-    print("Marking attendance for $_username in $_activeSubject (session: $_sessionId)...");
-    Map<String, dynamic> result = await _attendanceService.markAttendance(
+    // Call API
+    print("Marking attendance for $_username in $_activeSubject...");
+    bool success = await _attendanceService.markAttendance(
         section: "A", // Hardcoded for MVP
         username: _username!, 
         subject: _activeSubject!, 
         date: dateStr, 
-        time: timeStr,
-        sessionId: _sessionId!  // NEW
+        time: timeStr
     );
 
     if (mounted) {
       setState(() => _isLoading = false);
       
-      if (result['success'] == true) {
-          // Update local state
-          setState(() {
-            _alreadyMarked = result['already_marked'] ?? false;
-            _markedTime = result['marked_at'] ?? "";
-          });
-          
-          if (result['already_marked'] == true) {
-            // Already marked - show info
-            showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                icon: const Icon(Icons.info, color: Colors.orange, size: 50),
-                title: const Text("Already Marked"),
-                content: Text("You have already marked attendance for $_activeSubject at ${result['marked_at']}"),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("OK"),
-                  )
+      if (success) {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              icon: const Icon(Icons.check_circle, color: Colors.green, size: 50),
+              title: Text("Attendance Marked for $_activeSubject!"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Student: $_username"),
+                  const SizedBox(height: 5),
+                  Text("Device: $_deviceId"),
+                  const SizedBox(height: 5),
+                  const Text("Status: Verified & Saved to Cloud ✅"),
                 ],
               ),
-            );
-          } else {
-            // Successfully marked for first time
-            showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                icon: const Icon(Icons.check_circle, color: Colors.green, size: 50),
-                title: Text("Attendance Marked for $_activeSubject!"),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Student: $_username"),
-                    const SizedBox(height: 5),
-                    Text("Device: $_deviceId"),
-                    const SizedBox(height: 5),
-                    const Text("Status: Verified & Saved to Cloud ✅"),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("OK"),
-                  )
-                ],
-              ),
-            );
-          }
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
+                )
+              ],
+            ),
+          );
       } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? "Failed to mark attendance"),
-              backgroundColor: Colors.red
-            ),
+            const SnackBar(content: Text("Failed to mark attendance. Server Error."), backgroundColor: Colors.red),
           );
       }
     }
@@ -297,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
         isFacultyHotspotAvailable = _availableNetworks.any((ap) => ap.ssid.toLowerCase() == _targetSSID!.toLowerCase());
     }
 
-    bool canMarkAttendance = !_isLoading && isFacultyHotspotAvailable && _activeSubject != null && !_alreadyMarked;  // NEW: Check if already marked
+    bool canMarkAttendance = !_isLoading && isFacultyHotspotAvailable && _activeSubject != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -389,13 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          _alreadyMarked 
-                            ? "ALREADY MARKED AT $_markedTime" 
-                            : (canMarkAttendance ? "MARK PRESENT" : "ATTENDANCE DISABLED..."),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
-                        ),
+                      : Text(canMarkAttendance ? "MARK PRESENT" : "ATTENDANCE DISABLED...", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -419,12 +335,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemBuilder: (context, index) {
                           final network = _availableNetworks[index];
                           final isTarget = _targetSSID != null && network.ssid.toLowerCase() == _targetSSID!.toLowerCase();
-                          /*return ListTile(
+                          return ListTile(
                             leading: Icon(isTarget ? Icons.check_circle : Icons.wifi, color: isTarget ? Colors.green : null),
                             title: Text(network.ssid),
                             subtitle: Text("${network.level} dBm"),
                             tileColor: isTarget ? Colors.green[50] : null,
-                          );*/
+                          );
                         },
                       ),
               ),

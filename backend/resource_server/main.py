@@ -109,50 +109,22 @@ async def add_attendance(
     subject: str,
     date: str,
     time: str,
-    session_id: int = None,  # NEW: Optional session_id parameter
     credentials: dict = Depends(JWTBearer()),
     db: Session = Depends(database.get_db)
 ):
-    """Mark attendance for a student. Prevents duplicate attendance per session."""
-    
-    # If session_id provided, check for duplicates
-    if session_id:
-        # Verify session exists and is active
-        session = db.query(models.AttendanceSession).filter(
-            models.AttendanceSession.id == session_id,
-            models.AttendanceSession.is_active == True
-        ).first()
-        
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found or inactive")
-        
-        # Check if already marked
-        existing = db.query(models.AttendanceRecord).filter(
-            models.AttendanceRecord.session_id == session_id,
-            models.AttendanceRecord.username == username
-        ).first()
-        
-        if existing:
-            return {
-                "status": True,
-                "already_marked": True,
-                "marked_at": existing.created_at.strftime("%I:%M %p"),
-                "message": "You have already marked attendance for this session"
-            }
-    
+    """Mark attendance for a student. Requires authentication."""
     # Parse date and time strings to Python objects
     try:
         dt_date = datetime.strptime(date, "%Y-%m-%d").date()
     except:
-        dt_date = datetime.now().date()
+        dt_date = None
     
     try:
         dt_time = datetime.strptime(time, "%H:%M:%S").time() 
     except:
-        dt_time = datetime.now().time()
+         dt_time = None
 
     new_record = models.AttendanceRecord(
-        session_id=session_id,
         section=section,
         username=username,
         subject=subject,
@@ -162,35 +134,9 @@ async def add_attendance(
 
     db.add(new_record)
     db.commit()
-    
-    return {
-        "status": True,
-        "already_marked": False,
-        "message": "Attendance marked successfully"
-    }
+    return {"status": True}
 
-@app.get("/check_attendance_status", tags=["Attendance"])
-async def check_attendance_status(
-    username: str,
-    session_id: int,
-    credentials: dict = Depends(JWTBearer()),
-    db: Session = Depends(database.get_db)
-):
-    """Check if student has already marked attendance for a session"""
-    
-    record = db.query(models.AttendanceRecord).filter(
-        models.AttendanceRecord.session_id == session_id,
-        models.AttendanceRecord.username == username
-    ).first()
-    
-    if record:
-        return {
-            "marked": True,
-            "marked_at": record.created_at.strftime("%I:%M %p"),
-            "date": record.date.strftime("%Y-%m-%d")
-        }
-    
-    return {"marked": False}
+
 
 @app.get("/get_current_class", response_model=CurrentClassResponse, tags=["Resources"])
 async def get_current_class(
@@ -205,9 +151,9 @@ async def get_current_class(
     ).first()
     
     if session:
-        return {"status": True, "subject": session.subject, "session_id": session.id}
+        return {"status": True, "subject": session.subject}
     else:
-        return {"status": False, "subject": None, "session_id": None}
+        return {"status": False, "subject": None}
 
 @app.post("/start_attendance_session", response_model=AttendanceSession, tags=["Faculty"])
 async def start_attendance_session(
