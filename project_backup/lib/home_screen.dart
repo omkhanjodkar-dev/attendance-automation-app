@@ -263,41 +263,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 
-              const SizedBox(height: 10),
-              Card(
-                elevation: 4,
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    children: [
-                     /* ListTile(
-                        leading: const Icon(Icons.person, color: Colors.blue),
-                        title: const Text("Logged in as"),
-                        subtitle: Text(_username ?? "Loading...", style: const TextStyle(fontSize: 14)),
-                      ),
-                      const Divider(),
-                      ListTile(
-                        leading: Icon(Icons.wifi, color: _wifiName.contains("Scanning") ? Colors.orange : Colors.green),
-                        title: const Text("Your Wi-Fi"),
-                        subtitle: Text(_wifiName),
-                      ),
-                      const Divider(),
-                       ListTile(
-                        leading: const Icon(Icons.location_on, color: Colors.redAccent),
-                        title: const Text("GPS Location"),
-                        subtitle: Text(_locationTxt),
-                      ),*/
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: _loadUserAndSensors,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text("Refresh"),
-                      )
-                    ],
-                  ),
-                ),
-              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -324,26 +289,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                 ),
                 
-              const SizedBox(height: 20),
-              const Text("", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              SizedBox(
-                height: 200,
-                child: _availableNetworks.isEmpty
-                    ? const Center(child: Text(""))
-                    : ListView.builder(
-                        itemCount: _availableNetworks.length,
-                        itemBuilder: (context, index) {
-                          final network = _availableNetworks[index];
-                          final isTarget = _targetSSID != null && network.ssid.toLowerCase() == _targetSSID!.toLowerCase();
-                          return ListTile(
-                            leading: Icon(isTarget ? Icons.check_circle : Icons.wifi, color: isTarget ? Colors.green : null),
-                            title: Text(network.ssid),
-                            subtitle: Text("${network.level} dBm"),
-                            tileColor: isTarget ? Colors.green[50] : null,
-                          );
-                        },
-                      ),
-              ),
+
             ],
           ),
         ),
