@@ -1,95 +1,71 @@
-# Attendance Automation System
+# Attendance Automation App 📱✅
 
-A comprehensive automated attendance system consisting of a Flutter mobile application for students and faculty, and a Python (FastAPI) backend.
+A secure, location-aware attendance system built with Flutter. This application automates the attendance process by verifying a student's physical presence in the classroom using **WiFi Proximity Detection** and **Device Fingerprinting**, eliminating the need for manual roll calls or QR codes.
 
-## Overview
+## 🚀 Overview
 
-This system automates the attendance process by allowing faculty to start sessions and students to mark their presence using their mobile devices. Verification is handled via Wi-Fi SSID scanning and potentially geolocation.
+Traditional attendance methods are time-consuming and prone to proxy attendance. This app solves that by ensuring students are physically present. The Faculty app broadcasts or designates a "Target WiFi Network" (SSID), and the Student app scans for this network locally. The "Mark Present" button is only enabled if the student's device can physically detect the specific classroom network.
 
-The project is divided into two main parts:
-*   **Frontend:** A Flutter mobile application (`project_backup/`).
-*   **Backend:** A set of Python microservices (`backend/`).
+## 🛠 Tech Stack
 
-## Architecture
+*   **Frontend:** Flutter (Dart)
+*   **Backend Hosting:** [Render](https://render.com) (REST API)
+*   **Database:** PostgreSQL hosted on [Neon](https://neon.tech)
+*   **Key Libraries:**
+    *   `wifi_scan`: For scanning local networks to verify proximity.
+    *   `geolocator`: For GPS validation.
+    *   `device_info_plus`: For preventing one student from marking attendance for others on a single phone.
+    *   `flutter_secure_storage`: For secure JWT token management.
 
-*   **Client:** Flutter App (iOS/Android)
-*   **Server:**
-    *   **Auth Server (Port 8000):** Manages user authentication (JWT), login, and logout.
-    *   **Resource Server (Port 8001):** Handles attendance sessions, student data, and verification logic.
-*   **Database:** PostgreSQL (implied by `psycopg2` dependency).
+## ✨ Key Features
 
-## Prerequisites
+### 👨‍🏫 For Faculty
+*   **Session Management:** Start and stop class sessions instantly.
+*   **Dynamic Security:** Set the "Target SSID" (e.g., Classroom Router or Faculty Hotspot) required for attendance.
+*   **Real-time Dashboard:** Monitor active sessions.
 
-*   **Flutter SDK:** [Install Flutter](https://docs.flutter.dev/get-started/install) (Version 3.10.3 or higher recommended)
-*   **Python:** Version 3.8+
-*   **PostgreSQL:** Database server.
+### 👨‍🎓 For Students
+*   **One-Tap Attendance:** Mark attendance seamlessly when in range.
+*   **Proximity Validation:** The app automatically scans for the class WiFi signal.
+    *   *Note: You do not need to CONNECT to the WiFi, just be near it.*
+*   **Security Checks:** Validates Device ID and GPS location to prevent fraud.
 
-## Setup Instructions
+## ⚙️ How It Works
 
-### 1. Backend Setup
+1.  **Faculty Login:** The professor logs in and starts a session (e.g., "Advanced Mathematics - Section A").
+2.  **SSID Assignment:** The professor designates a WiFi network (e.g., `Classroom_501` or `Prof_Hotspot`) as the anchor.
+3.  **Student Verification:**
+    *   The student opens the app.
+    *   The app passively scans for nearby WiFi networks.
+    *   If `Classroom_501` is found in the scan list, the **"MARK PRESENT"** button unlocks.
+4.  **Submission:** The student clicks the button. The app sends the User ID, Device ID, and Timestamp to the Render backend, which stores the record in the Neon database.
 
-The backend is located in the `backend/` directory and consists of two services.
+## 📦 Installation & Setup
 
-#### Environment Variables
-Create a `.env` file in `backend/auth_server/` and `backend/resource_server/` with the necessary configuration (Database URL, JWT Secret, etc.).
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/yourusername/attendance-automation-app.git
+    cd attendance-automation-app
+    ```
 
-#### Auth Server
-```bash
-cd backend/auth_server
-pip install -r requirements.txt
-python main.py
-```
-Runs on `http://localhost:8000`. Documentation at `/docs`.
+2.  **Install Dependencies:**
+    ```bash
+    flutter pub get
+    ```
 
-#### Resource Server
-```bash
-cd backend/resource_server
-pip install -r requirements.txt
-python main.py
-```
-Runs on `http://localhost:8001`. Documentation at `/docs`.
+3.  **Run the App:**
+    Connect your physical device (WiFi scanning works best on physical Android/iOS devices, not emulators).
+    ```bash
+    flutter run
+    ```
 
-### 2. Frontend Setup
+## 📱 Permissions
+To function correctly, the app requires the following permissions to scan for networks and verify location:
+*   **Location (Fine/Coarse):** Required by Android/iOS to access WiFi scan results.
+*   **WiFi State:** To initiate network scans.
 
-The Flutter application is located in the `project_backup/` directory.
+## 🤝 Contributing
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-```bash
-cd project_backup
-flutter pub get
-```
-
-#### Running the App
-Ensure you have an emulator running or a physical device connected.
-
-```bash
-flutter run
-```
-
-*   **Note:** You may need to update the API endpoints in the Flutter app to point to your local backend IP address (not `localhost` if running on a physical device/emulator, use your machine's LAN IP).
-
-## Features
-
-*   **Faculty Dashboard:**
-    *   Start/Stop attendance sessions.
-    *   View attendance records.
-    *   Manage settings.
-*   **Student Dashboard:**
-    *   Mark attendance (verifies Wi-Fi/Location).
-    *   View attendance history.
-*   **Security:**
-    *   JWT-based authentication (Access & Refresh tokens).
-    *   Secure storage on mobile devices.
-
-## Project Structure
-
-```
-.
-├── backend/               # Python FastAPI Backend
-│   ├── auth_server/       # Authentication Service
-│   └── resource_server/   # Core Business Logic Service
-├── project_backup/        # Flutter Mobile Application
-│   ├── lib/               # Dart Source Code
-│   ├── android/           # Android Native Code
-│   └── ios/               # iOS Native Code
-└── assets/                # Project Assets & Documentation
-```
+---
+*Built with 💙 using Flutter.*
