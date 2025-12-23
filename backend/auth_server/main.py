@@ -61,16 +61,16 @@ async def root():
 
 @app.post("/check_student_login", response_model=TokenResponse, tags=["Authentication"])
 async def check_student_login(username: str, password: str, db: Session = Depends(database.get_db)):
-    """Student login - returns access token and refresh token"""
+    
     student = db.query(models.Student).filter(
         models.Student.username == username
     ).first()
     
     if student and bcrypt.checkpw(password.encode('utf-8'), student.password.encode('utf-8')):
-        # Generate both tokens
+        
         tokens = sign_jwt(username, "student")
         
-        # Store refresh token in database
+        
         expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         db_refresh_token = models.RefreshToken(
             token=tokens["refresh_token"],
@@ -87,16 +87,16 @@ async def check_student_login(username: str, password: str, db: Session = Depend
 
 @app.post("/check_faculty_login", response_model=TokenResponse, tags=["Authentication"])
 async def check_faculty_login(username: str, password: str, db: Session = Depends(database.get_db)):
-    """Faculty login - returns access token and refresh token"""
+    
     faculty = db.query(models.Faculty).filter(
         models.Faculty.username == username
     ).first()
     
     if faculty and bcrypt.checkpw(password.encode('utf-8'), faculty.password.encode('utf-8')):
-        # Generate both tokens
+        
         tokens = sign_jwt(username, "faculty")
         
-        # Store refresh token in database
+        
         expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         db_refresh_token = models.RefreshToken(
             token=tokens["refresh_token"],
@@ -113,8 +113,7 @@ async def check_faculty_login(username: str, password: str, db: Session = Depend
 
 @app.post("/refresh", response_model=TokenResponse, tags=["Token Management"])
 async def refresh_access_token(request: RefreshRequest, db: Session = Depends(database.get_db)):
-    """Exchange refresh token for new access token"""
-    # Decode the refresh token
+    
     decoded = decode_token(request.refresh_token)
     
     if not decoded or decoded.get("type") != "refresh":
