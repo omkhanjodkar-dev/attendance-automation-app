@@ -287,11 +287,46 @@ function updateChart(passed, failed) {
         },
         options: {
             responsive: true,
-            cutout: '75%',
+            cutout: '70%',
             plugins: {
-                legend: { position: 'bottom', labels: { usePointStyle: true } }
+                legend: { position: 'bottom', labels: { usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.label || '';
+                            let value = context.raw || 0;
+                            let total = context.chart._metasets[context.datasetIndex].total;
+                            let percentage = Math.round(value / total * 100) + '%';
+                            return `${label}: ${value} (${percentage})`;
+                        }
+                    }
+                }
             }
-        }
+        },
+        plugins: [{
+            id: 'textCenter',
+            beforeDraw: function (chart) {
+                var width = chart.width,
+                    height = chart.height,
+                    ctx = chart.ctx;
+
+                ctx.restore();
+                var fontSize = (height / 114).toFixed(2);
+                ctx.font = "bold " + fontSize + "em sans-serif";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#198754"; // Success color
+
+                var total = passed + failed;
+                var percentage = total ? Math.round((passed / total) * 100) + "%" : "0%";
+
+                var text = percentage,
+                    textX = Math.round((width - ctx.measureText(text).width) / 2),
+                    textY = height / 2;
+
+                ctx.fillText(text, textX, textY);
+                ctx.save();
+            }
+        }]
     });
 }
 
