@@ -40,7 +40,7 @@ Use this for detailed analytics and history.
 #### **2. Overview Tab**
 - **Real-time Stats**: See how many students are present right now.
 - **Charts**: View a "Pass vs. Fail" attendance pie chart.
-- **Subject Filter**: Use the dropdown (e.g., "Mathematics") to see stats for a specific subject.
+- **Subject Filter**: Use the dropdown (e.g., "CPPS") to see stats for a specific subject.
 
 #### **3. Attendance History Tab**
 - Click the **"Attendance History"** tab to see a detailed log of every student's attendance.
