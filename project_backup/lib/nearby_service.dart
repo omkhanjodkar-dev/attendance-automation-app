@@ -74,7 +74,7 @@ class NearbyService {
   // Returns the Discovered Endpoint ID and Info
   Future<bool> startDiscoveryForStudent(
     Function(String endpointId, String endpointName) onDeviceFound,
-    Function(String endpointId) onDeviceLost,
+    Function(String? endpointId) onDeviceLost,
   ) async {
     try {
       bool discovering = await Nearby().startDiscovery(
@@ -86,7 +86,7 @@ class NearbyService {
                 onDeviceFound(id, userName);
             }
         },
-        onEndpointLost: (String id) {
+        onEndpointLost: (String? id) {
             onDeviceLost(id);
         },
         serviceId: "com.college.attendance",
