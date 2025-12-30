@@ -1,0 +1,40 @@
+body {
+    background-color: #f4f6f9;
+    font-family: 'Inter', sans-serif;
+}
+
+#login-view {
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+}
+
+.card {
+    border-radius: 12px;
+}
+
+.table th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    color: #6c757d;
+}
+
+.progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+}
+
+.badge-percent {
+    min-width: 50px;
+}
+
+/* Custom Scrollbar for table */
+.table-responsive::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #ced4da;
+    border-radius: 3px;
+}

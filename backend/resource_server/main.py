@@ -1,4 +1,5 @@
 # final backend
+from typing import List
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -33,6 +34,19 @@ class AttendanceAdd(BaseModel):
 class UpdateSSID(BaseModel):
     section: str
     ssid: str
+
+class AttendanceRecordResponse(BaseModel):
+    date: str
+    time: str
+    username: str
+    subject: str
+
+class StudentStatsResponse(BaseModel):
+    username: str
+    subject: str
+    attended: int
+    total: int
+    percentage: float
 
 # --- App Initialization ---
 
@@ -207,6 +221,76 @@ async def stop_attendance_session(
         db.commit()
     
     return {"status": False}
+
+@app.get("/get_attendance_records", response_model=List[AttendanceRecordResponse], tags=["Attendance"])
+async def get_attendance_records(
+    section: str,
+    credentials: dict = Depends(JWTBearer()),
+    db: Session = Depends(database.get_db)
+):
+    """Get attendance records for a section. Requires authentication."""
+    records = db.query(models.AttendanceRecord).filter(
+        models.AttendanceRecord.section == section,
+        models.AttendanceRecord.status == "Present"
+    ).all()
+
+    result = []
+    for record in records:
+        result.append({
+            "date": record.date.strftime("%Y-%m-%d") if record.date else "",
+            "time": record.time.strftime("%H:%M:%S") if record.time else "",
+            "username": record.username,
+            "subject": record.subject
+        })
+    
+    return result
+
+@app.get("/get_all_student_stats", response_model=List[StudentStatsResponse], tags=["Attendance"])
+async def get_all_student_stats(
+    section: str,
+    credentials: dict = Depends(JWTBearer()),
+    db: Session = Depends(database.get_db)
+):
+    """Get attendance statistics for all students in a section. Requires authentication."""
+    
+    # Get all attendance records for this section
+    all_records = db.query(models.AttendanceRecord).filter(
+        models.AttendanceRecord.section == section
+    ).all()
+    
+    # Get all session records to calculate total classes per subject
+    all_sessions = db.query(models.AttendanceSession).filter(
+        models.AttendanceSession.section == section
+    ).all()
+    
+    # Calculate total classes per subject
+    subject_totals = {}
+    for session in all_sessions:
+        subject = session.subject
+        subject_totals[subject] = subject_totals.get(subject, 0) + 1
+    
+    # Group attendance by username and subject
+    stats_dict = {}
+    for record in all_records:
+        if record.status == "Present":
+            key = (record.username, record.subject)
+            stats_dict[key] = stats_dict.get(key, 0) + 1
+    
+    # Build the result
+    result = []
+    for (username, subject), attended in stats_dict.items():
+        total = subject_totals.get(subject, 0)
+        percentage = (attended / total * 100) if total > 0 else 0.0
+        
+        result.append({
+            "username": username,
+            "subject": subject,
+            "attended": attended,
+            "total": total,
+            "percentage": round(percentage, 2)
+        })
+    
+    return result
 
 # --- Main ---
 
