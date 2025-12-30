@@ -321,7 +321,7 @@ function updateChart(passed, failed) {
 
                 var text = percentage,
                     textX = Math.round((width - ctx.measureText(text).width) / 2),
-                    textY = height / 2;
+                    textY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
 
                 ctx.fillText(text, textX, textY);
                 ctx.save();
