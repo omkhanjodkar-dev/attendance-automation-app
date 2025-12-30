@@ -20,16 +20,25 @@ const refreshBtn = document.getElementById('refresh-btn');
 const refreshHistoryBtn = document.getElementById('refresh-history-btn');
 const statsBody = document.getElementById('stats-body');
 const historyBody = document.getElementById('history-body');
+const subjectFilter = document.getElementById('subject-filter');
 
 // State
 const SECTION = "A"; // Hardcoded section for MVP
 let accessToken = sessionStorage.getItem('faculty_access_token');
 let refreshToken = sessionStorage.getItem('faculty_refresh_token');
 let chartInstance = null;
+let allStatsData = []; // Store raw data for filtering
 
 // Init
 if (accessToken) {
     showDashboard();
+}
+
+// Filter Event Listener
+if (subjectFilter) {
+    subjectFilter.addEventListener('change', () => {
+        renderData(allStatsData);
+    });
 }
 
 // --- Tab Logic ---
@@ -144,29 +153,70 @@ async function fetchStats() {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
             // Try to refresh token
+            console.log(`Received ${res.status}, attempting refresh...`);
             const refreshed = await refreshAccessToken();
             if (refreshed) {
                 // Retry the request with new token
                 return fetchStats();
             } else {
                 // Refresh failed, logout
+                console.warn("Refresh failed, logging out.");
                 logoutBtn.click();
             }
             return;
         }
 
+        if (!res.ok) {
+            throw new Error(`API Error: ${res.status} ${res.statusText}`);
+        }
+
         const data = await res.json();
+        allStatsData = data; // Save global reference
+        populateSubjectFilter(data);
         renderData(data);
     } catch (err) {
         console.error("Stats Fetch Error:", err);
-        alert('Failed to fetch data. See console.');
+        // Show more detailed error if available
+        const msg = err.message || 'Failed to fetch data';
+        alert(`Error: ${msg}. Check console for details.`);
+    }
+}
+
+function populateSubjectFilter(data) {
+    // Get unique subjects
+    const subjects = [...new Set(data.map(item => item.subject))].sort();
+
+    // Save current selection if possible
+    const currentSelection = subjectFilter.value;
+
+    // Reset options
+    subjectFilter.innerHTML = '<option value="all">All Subjects</option>';
+
+    subjects.forEach(subject => {
+        const option = document.createElement('option');
+        option.value = subject;
+        option.textContent = subject;
+        subjectFilter.appendChild(option);
+    });
+
+    // Restore selection if it still exists
+    if (subjects.includes(currentSelection)) {
+        subjectFilter.value = currentSelection;
     }
 }
 
 function renderData(data) {
     statsBody.innerHTML = '';
+
+    // Filter Data based on selection
+    const filterSubject = subjectFilter.value;
+    let filteredData = data;
+
+    if (filterSubject !== 'all') {
+        filteredData = data.filter(item => item.subject === filterSubject);
+    }
 
     // Summary Vars
     let totalStudents = new Set();
@@ -175,9 +225,9 @@ function renderData(data) {
     let passedCount = 0;
 
     // Sort by lowest attendance first
-    data.sort((a, b) => a.percentage - b.percentage);
+    filteredData.sort((a, b) => a.percentage - b.percentage);
 
-    data.forEach(item => {
+    filteredData.forEach(item => {
         totalStudents.add(item.username);
         totalClasses = Math.max(totalClasses, item.total); // Approximate max classes
         sumPercentage += item.percentage;
@@ -208,14 +258,14 @@ function renderData(data) {
     // Update Summary Cards
     document.getElementById('total-students').textContent = totalStudents.size;
     document.getElementById('total-classes').textContent = totalClasses; // Simplified
-    const avg = data.length ? (sumPercentage / data.length).toFixed(1) : 0;
+    const avg = filteredData.length ? (sumPercentage / filteredData.length).toFixed(1) : 0;
     document.getElementById('avg-attendance').textContent = `${avg}%`;
 
     // Update Chart
-    updateChart(passedCount, data.length - passedCount);
+    updateChart(passedCount, filteredData.length - passedCount);
 
     // Pass Rate
-    const passRate = data.length ? ((passedCount / data.length) * 100).toFixed(1) : 0;
+    const passRate = filteredData.length ? ((passedCount / filteredData.length) * 100).toFixed(1) : 0;
     document.getElementById('pass-rate').textContent = `${passRate}%`;
 }
 
@@ -255,7 +305,7 @@ async function fetchHistory() {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
             // Try to refresh token
             const refreshed = await refreshAccessToken();
             if (refreshed) {
@@ -268,11 +318,16 @@ async function fetchHistory() {
             return;
         }
 
+        if (!res.ok) {
+            throw new Error(`API Error: ${res.status} ${res.statusText}`);
+        }
+
         const data = await res.json();
         renderHistory(data);
     } catch (err) {
         console.error("History Fetch Error:", err);
-        alert('Failed to fetch history.');
+        const msg = err.message || 'Failed to fetch history';
+        alert(`Error: ${msg}. Check console for details.`);
     }
 }
 
@@ -283,6 +338,13 @@ function renderHistory(data) {
         historyBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No records found</td></tr>';
         return;
     }
+
+    // Sort by Date and Time Descending (Newest First)
+    data.sort((a, b) => {
+        const dateTimeA = `${a.date} ${a.time}`;
+        const dateTimeB = `${b.date} ${b.time}`;
+        return dateTimeB.localeCompare(dateTimeA);
+    });
 
     data.forEach(item => {
         const row = document.createElement('tr');
