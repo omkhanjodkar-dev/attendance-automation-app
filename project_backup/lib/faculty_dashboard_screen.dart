@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:attendance_automation/attendance_service.dart';
+import 'package:attendance_automation/nearby_service.dart';
 import 'faculty_settings_screen.dart';
 
 class FacultyDashboardScreen extends StatefulWidget {
@@ -58,39 +59,28 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
   }
 
   Future<void> _startAttendance(String className) async {
-    // 1. Check for stored SSID via API
-    // Hardcoded section 'A' for MVP
-    final String? ssid = await _attendanceService.getClassSSID("A");
-
-    if (ssid == null || ssid.isEmpty) {
-      // 2. If no SSID, prompt to go to settings
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Setup Required'),
-            content: const Text(
-                'You must configure your Hotspot Name (SSID) in Settings before starting attendance.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _openSettings();
-                },
-                child: const Text('Go to Settings'),
-              ),
-            ],
-          ),
-        );
-      }
-      return;
+    // 1. Check Permissions for Nearby Connections
+    bool hasPermissions = await NearbyService().checkPermissions();
+    if (!hasPermissions) {
+        if (mounted) {
+            showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                    title: const Text('Permissions Required'),
+                    content: const Text('Bluetooth and Location permissions are required to broadcast the class beacon.'),
+                    actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                        )
+                    ],
+                )
+            );
+        }
+        return;
     }
 
-    // 3. If SSID exists, confirm and start
+    // 2. Confirm Start
     if (mounted) {
       final proceed = await showDialog<bool>(
         context: context,
@@ -99,10 +89,10 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                const Text("Please turn on your device's Wi-Fi hotspot."),
+                const Text("This will start broadcasting the class beacon."),
                 const SizedBox(height: 10),
                 Text(
-                    "Your hostpot name ($ssid) will be used to verify student attendance."),
+                    "Students nearby will be able to mark their attendance for $className."),
               ],
             ),
           ),
@@ -121,17 +111,22 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
 
       if (proceed == true) {
         // Start Session API Call
-        bool success = await _attendanceService.startSession("A", className);
+        // Returns OTP string if successful, null otherwise
+        String? otp = await _attendanceService.startSession("A", className);
 
-        if (success) {
+        if (otp != null) {
+          // Start Advertising Beacon with OTP
+          // Format: Class_<ClassName>_<OTP>
+          await NearbyService().startAdvertisingForFaculty("Class_${className}_$otp");
+
           setState(() {
-            _attendanceService.activeFacultySSID = ssid;
+            _attendanceService.activeFacultySSID = "Beacon Active (OTP: $otp)"; 
             _attendanceService.activeClassName = className;
           });
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Attendance started for $className")),
+              SnackBar(content: Text("Attendance started for $className (OTP: $otp)")),
             );
           }
         } else {
@@ -146,6 +141,9 @@ class _FacultyDashboardScreenState extends State<FacultyDashboardScreen> {
   }
 
   Future<void> _stopAttendance() async {
+    // Stop Beacon
+    await NearbyService().stopAdvertising();
+    
     // API Call to stop session
     await _attendanceService.stopSession("A");
 

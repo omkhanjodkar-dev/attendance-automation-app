@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+import random
+import string
 import models, database
 from auth_bearer import JWTBearer
 from dotenv import load_dotenv
@@ -28,6 +30,7 @@ class CurrentClassResponse(BaseModel):
 
 class AttendanceSession(BaseModel):
     status: bool
+    otp: Optional[str] = None
 
 class AttendanceAdd(BaseModel):
     status: bool
@@ -133,10 +136,25 @@ async def add_attendance(
     subject: str,
     date: str,
     time: str,
+    otp: Optional[str] = None, # Make optional for backward compatibility if needed, or required
     credentials: dict = Depends(JWTBearer()),
     db: Session = Depends(database.get_db)
 ):
     """Mark attendance for a student. Requires authentication."""
+    
+    # 1. Verify Session OTP
+    active_session = db.query(models.AttendanceSession).filter(
+        models.AttendanceSession.section == section,
+        models.AttendanceSession.is_active == True
+    ).first()
+    
+    if not active_session:
+        return {"status": False, "message": "No active session"}
+        
+    if active_session.otp and active_session.otp != otp:
+        # Invalid OTP (or spoofed request without Nearby Token)
+        return {"status": False, "message": "Invalid Session Token. You must be in class."}
+
     # Parse date and time strings to Python objects
     try:
         dt_date = datetime.strptime(date, "%Y-%m-%d").date()
@@ -200,15 +218,19 @@ async def start_attendance_session(
         s.is_active = False
     
     # 2. Start new
+    # Generate 4-digit OTP
+    otp_code = ''.join(random.choices(string.digits, k=4))
+    
     new_session = models.AttendanceSession(
         section=section,
         subject=subject,
-        is_active=True
+        is_active=True,
+        otp=otp_code
     )
     db.add(new_session)
     db.commit()
     
-    return {"status": True}
+    return {"status": True, "otp": otp_code}
 
 @app.post("/stop_attendance_session", response_model=AttendanceSession, tags=["Faculty"])
 async def stop_attendance_session(

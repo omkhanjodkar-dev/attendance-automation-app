@@ -268,23 +268,25 @@ class AttendanceService {
   }
 
   // 3.6 Start Attendance Session
-  Future<bool> startSession(String section, String subject) async {
+  Future<String?> startSession(String section, String subject) async {
     final url = Uri.parse("$_resourceBaseUrl/start_attendance_session?section=$section&subject=$subject");
     final headers = await _getAuthHeaders();
     
     try {
       final response = await http.post(url, headers: headers);
       
-      if (await _handleUnauthorized(response)) return false;
+      if (await _handleUnauthorized(response)) return null;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['status'] == true;
+        if (data['status'] == true) {
+            return data['otp']; // Return the OTP
+        }
       }
     } catch (e) {
       print("Start Session Error: $e");
     }
-    return false;
+    return null;
   }
 
   // 3.7 Stop Attendance Session
@@ -314,7 +316,8 @@ class AttendanceService {
     required String username, 
     required String subject,
     required String date,
-    required String time
+    required String time,
+    required String otp,
   }) async {
     // Construct URL with Query Parameters
     final queryParams = Uri(queryParameters: {
@@ -323,6 +326,7 @@ class AttendanceService {
       "subject": subject,
       "date": date,
       "time": time,
+      "otp": otp,
     }).query;
 
     final url = Uri.parse("$_resourceBaseUrl/add_attendance?$queryParams");

@@ -20,6 +20,7 @@ class AttendanceSession(Base):
     subject = Column(String)
     start_time = Column(DateTime, server_default=func.now())
     is_active = Column(Boolean, default=True)
+    otp = Column(String, nullable=True)
 
 # Table: attendance_records
 class AttendanceRecord(Base):

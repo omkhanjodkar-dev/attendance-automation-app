@@ -1,14 +1,11 @@
-import 'dart:async'; // Import for StreamSubscription
-import 'dart:io';
 import 'package:attendance_automation/attendance_service.dart';
 import 'package:attendance_automation/student_settings_screen.dart';
+import 'package:attendance_automation/nearby_service.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:network_info_plus/network_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wifi_scan/wifi_scan.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,13 +15,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _wifiName = "Scanning...";
+  String _statusTxt = "Initializing...";
   String _locationTxt = "Waiting...";
   String _deviceId = "Unknown";
-  String _macAddress = "Unknown";
-  List<WiFiAccessPoint> _availableNetworks = [];
+  
+  // List of discovered faculty devices
+  final Set<String> _foundClasses = {};
+  final Map<String, String> _lastSeenOtp = {};
+  
   bool _isLoading = false;
-  StreamSubscription<List<WiFiAccessPoint>>? _subscription;
   final AttendanceService _attendanceService = AttendanceService();
   
   // State variables for Class Session
@@ -40,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    NearbyService().stopDiscovery();
     super.dispose();
   }
 
@@ -78,10 +77,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initSensors() async {
-    await [
-      Permission.location,
-      Permission.locationWhenInUse,
-    ].request();
+    // Check Permissions
+    bool hasPerms = await NearbyService().checkPermissions();
+    if (!hasPerms) {
+        setState(() => _statusTxt = "Permissions Missing");
+        return;
+    }
 
     final deviceInfo = DeviceInfoPlugin();
     String id = "Unknown";
@@ -99,57 +100,47 @@ class _HomeScreenState extends State<HomeScreen> {
         });
     }
 
-    _refreshSensors();
+    _startScanning();
   }
 
-  Future<void> _getScannedNetworks() async {
-    final accessPoints = await WiFiScan.instance.getScannedResults();
-    if (mounted) {
-        setState(() {
-            _availableNetworks = accessPoints;
-        });
-    }
-  }
-
-  Future<void> _refreshSensors() async {
-    // Only set loading if not already loading (to avoid flicker)
-    // setState(() => _isLoading = true);
-
+  Future<void> _startScanning() async {
+    setState(() => _statusTxt = "Scanning for Class...");
+    
+    // Get Location for UI (Optional, but good for verification)
     try {
-      Position pos = await Geolocator.getCurrentPosition();
-      final info = NetworkInfo();
-      String? wifi = await info.getWifiName();
-      String? bssid = await info.getWifiBSSID();
-
-      final canScan = await WiFiScan.instance.canStartScan(askPermissions: true);
-      if (canScan == CanStartScan.yes) {
-        final isScanning = await WiFiScan.instance.startScan();
-        if (isScanning) {
-          _subscription?.cancel();
-          _subscription = WiFiScan.instance.onScannedResultsAvailable.listen((event) {
-            _getScannedNetworks();
-          });
-        }
-      }
-
-      if (mounted) {
-          setState(() {
-            _locationTxt = "Lat: ${pos.latitude.toStringAsFixed(4)}\nLng: ${pos.longitude.toStringAsFixed(4)}";
-            _wifiName = wifi ?? "Mobile Data / Not Connected";
-            _macAddress = bssid ?? "Unknown";
-            // _isLoading = false;
-          });
-      }
+        Position pos = await Geolocator.getCurrentPosition();
+        if (mounted) setState(() => _locationTxt = "Lat: ${pos.latitude.toStringAsFixed(4)}\nLng: ${pos.longitude.toStringAsFixed(4)}");
     } catch (e) {
-      if (mounted) {
-          setState(() {
-            _locationTxt = "Error getting location";
-            _wifiName = "Error getting Wi-Fi";
-            _macAddress = "Error getting MAC address";
-            // _isLoading = false;
-          });
-      }
+        // Ignore location errors for now, not critical for Nearby
     }
+
+    // Start Nearby Discovery
+    await NearbyService().startDiscoveryForStudent(
+        (endpointId, endpointName) {
+            // Found a device
+            print("Found Encrypted Beacon: $endpointName");
+            if (endpointName.startsWith("Class_")) {
+                // Expected format: Class_<Subject>_<OTP>
+                final parts = endpointName.split("_");
+                if (parts.length >= 3) {
+                    String className = parts[1];
+                    String otp = parts[2];
+                    
+                    if (mounted) {
+                        setState(() {
+                            _foundClasses.add(className);
+                            // Store the OTP for this class (using a Map would be better, but for MVP we can use a separate Map or just assuming one class active)
+                            _lastSeenOtp[className] = otp; 
+                            _statusTxt = "Found Class: $className";
+                        });
+                    }
+                }
+            }
+        },
+        (endpointId) {
+            // Lost a device
+        }
+    );
   }
 
   Future<void> _markAttendance() async {
@@ -164,12 +155,21 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Call API
     print("Marking attendance for $_username in $_activeSubject...");
+    
+    String? otp = _lastSeenOtp[_activeSubject];
+    if (otp == null) {
+        // Should not happen if validation passed, but safety check
+        setState(() => _isLoading = false);
+        return;
+    }
+
     bool success = await _attendanceService.markAttendance(
         section: "A", // Hardcoded for MVP
         username: _username!, 
         subject: _activeSubject!, 
         date: dateStr, 
-        time: timeStr
+        time: timeStr,
+        otp: otp
     );
 
     if (mounted) {
@@ -212,14 +212,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     
     // Validation Logic
-    // 1. Must implement scanning logic locally
-    bool isFacultyHotspotAvailable = false;
-    if (_targetSSID != null) {
-        // Check if TARGET SSID is in the scanned list
-        isFacultyHotspotAvailable = _availableNetworks.any((ap) => ap.ssid.toLowerCase() == _targetSSID!.toLowerCase());
+    // 1. Check if the active subject is in the found classes list
+    bool isClassaconFound = false;
+    if (_activeSubject != null) {
+        isClassaconFound = _foundClasses.contains(_activeSubject);
     }
 
-    bool canMarkAttendance = !_isLoading && isFacultyHotspotAvailable && _activeSubject != null;
+    bool canMarkAttendance = !_isLoading && isClassaconFound && _activeSubject != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -282,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               
               // Status Messages
-              if (_activeSubject != null && !isFacultyHotspotAvailable)
+              if (_activeSubject != null && !isClassaconFound)
                 Text(
                   "Ensure that you are in the classroom.",
                   textAlign: TextAlign.center,
