@@ -3,6 +3,7 @@ import uvicorn
 import time
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from auth_handler import sign_jwt, decode_token, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS, JWT_SECRET, JWT_ALGORITHM
 import jwt
 
@@ -51,6 +52,15 @@ app = FastAPI(
     title="Attendance Auth Server",
     description="Microservice for handling student and faculty authentication with refresh tokens.",
     version="2.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 # --- API Endpoints ---

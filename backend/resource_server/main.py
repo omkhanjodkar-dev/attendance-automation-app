@@ -2,6 +2,7 @@
 from typing import List
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -57,6 +58,15 @@ app = FastAPI(
     title="Attendance Resource Server",
     description="Handles attendance sessions, SSID management, and attendance records.",
     version="3.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 # --- API Endpoints ---
