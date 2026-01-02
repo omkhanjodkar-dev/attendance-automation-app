@@ -21,7 +21,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.attendance_automation"
-        minSdk = flutter.minSdkVersion
+        // Nearby Connections requires minimum SDK 21 (Android 5.0)
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

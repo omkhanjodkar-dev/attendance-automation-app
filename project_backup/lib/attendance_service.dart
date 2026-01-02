@@ -267,24 +267,30 @@ class AttendanceService {
     return false;
   }
 
-  // 3.6 Start Attendance Session
-  Future<bool> startSession(String section, String subject) async {
+  // 3.6 Start Attendance Session (Returns OTP)
+  Future<Map<String, dynamic>?> startSession(String section, String subject) async {
     final url = Uri.parse("$_resourceBaseUrl/start_attendance_session?section=$section&subject=$subject");
     final headers = await _getAuthHeaders();
     
     try {
       final response = await http.post(url, headers: headers);
       
-      if (await _handleUnauthorized(response)) return false;
+      if (await _handleUnauthorized(response)) return null;
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['status'] == true;
+        if (data['status'] == true) {
+          return {
+            'status': true,
+            'otp': data['otp'],
+            'expires_at': data['expires_at'],
+          };
+        }
       }
     } catch (e) {
       print("Start Session Error: $e");
     }
-    return false;
+    return null;
   }
 
   // 3.7 Stop Attendance Session
@@ -341,5 +347,53 @@ class AttendanceService {
       print("Marking Error: $e");
     }
     return false;
+  }
+
+  // 5. Verify OTP and Mark Attendance (New for Nearby Connections)
+  Future<Map<String, dynamic>> verifyOTPAndMarkAttendance({
+    required String section,
+    required String username,
+    required String otp,
+    required String date,
+    required String time,
+  }) async {
+    final url = Uri.parse("$_resourceBaseUrl/verify_otp");
+    final headers = await _getAuthHeaders();
+    
+    try {
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode({
+          "section": section,
+          "username": username,
+          "otp": otp,
+          "date": date,
+          "time": time,
+        }),
+      );
+      
+      if (await _handleUnauthorized(response)) {
+        return {'status': false, 'message': 'Unauthorized - please login again'};
+      }
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'status': data['status'],
+          'subject': data['subject'],
+          'message': data['message'] ?? 'Success',
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'status': false,
+          'message': error['detail'] ?? 'Failed to verify OTP',
+        };
+      }
+    } catch (e) {
+      print("OTP Verification Error: $e");
+      return {'status': false, 'message': 'Network error: $e'};
+    }
   }
 }

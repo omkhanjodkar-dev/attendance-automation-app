@@ -6,10 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import models, database
+from otp_model import SessionOTP
 from auth_bearer import JWTBearer
 from dotenv import load_dotenv
+import random
+import string
 
 # Load environment variables from .env file
 load_dotenv()
@@ -49,10 +52,35 @@ class StudentStatsResponse(BaseModel):
     total: int
     percentage: float
 
+class OTPGenerateResponse(BaseModel):
+    status: bool
+    otp: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class OTPVerifyRequest(BaseModel):
+    section: str
+    username: str
+    otp: str
+    date: str
+    time: str
+
+class OTPVerifyResponse(BaseModel):
+    status: bool
+    subject: Optional[str] = None
+    message: Optional[str] = None
+
+# --- Helper Functions ---
+
+def generate_otp(length: int = 6) -> str:
+    """Generate a random alphanumeric OTP code."""
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
+
 # --- App Initialization ---
 
 # Create tables if they don't exist
 models.Base.metadata.create_all(bind=database.engine)
+SessionOTP.metadata.create_all(bind=database.engine)
 
 app = FastAPI(
     title="Attendance Resource Server",
@@ -179,19 +207,19 @@ async def get_current_class(
     else:
         return {"status": False, "subject": None}
 
-@app.post("/start_attendance_session", response_model=AttendanceSession, tags=["Faculty"])
+@app.post("/start_attendance_session", response_model=OTPGenerateResponse, tags=["Faculty"])
 async def start_attendance_session(
     section: str,
     subject: str,
     credentials: dict = Depends(JWTBearer()),
     db: Session = Depends(database.get_db)
 ):
-    """Start an attendance session. Faculty only."""
+    """Start an attendance session and generate OTP. Faculty only."""
     # Check if user is faculty
     if credentials.get("role") != "faculty":
         raise HTTPException(status_code=403, detail="Only faculty can start attendance sessions")
     
-    # 1. Close existing
+    # 1. Close existing sessions
     existing = db.query(models.AttendanceSession).filter(
         models.AttendanceSession.section == section,
         models.AttendanceSession.is_active == True
@@ -199,7 +227,7 @@ async def start_attendance_session(
     for s in existing:
         s.is_active = False
     
-    # 2. Start new
+    # 2. Start new session
     new_session = models.AttendanceSession(
         section=section,
         subject=subject,
@@ -207,8 +235,26 @@ async def start_attendance_session(
     )
     db.add(new_session)
     db.commit()
+    db.refresh(new_session)
     
-    return {"status": True}
+    # 3. Generate OTP for this session
+    otp_code = generate_otp(6)
+    expires_at = datetime.now() + timedelta(minutes=10)
+    
+    new_otp = SessionOTP(
+        session_id=new_session.id,
+        otp_code=otp_code,
+        expires_at=expires_at,
+        is_used=False
+    )
+    db.add(new_otp)
+    db.commit()
+    
+    return {
+        "status": True,
+        "otp": otp_code,
+        "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 @app.post("/stop_attendance_session", response_model=AttendanceSession, tags=["Faculty"])
 async def stop_attendance_session(
@@ -216,7 +262,7 @@ async def stop_attendance_session(
     credentials: dict = Depends(JWTBearer()),
     db: Session = Depends(database.get_db)
 ):
-    """Stop an attendance session. Faculty only."""
+    """Stop an attendance session and invalidate OTP. Faculty only."""
     # Check if user is faculty
     if credentials.get("role") != "faculty":
         raise HTTPException(status_code=403, detail="Only faculty can stop attendance sessions")
@@ -228,9 +274,92 @@ async def stop_attendance_session(
     
     if session:
         session.is_active = False
+        
+        # Mark associated OTP as used/expired
+        otp = db.query(SessionOTP).filter(
+            SessionOTP.session_id == session.id,
+            SessionOTP.is_used == False
+        ).first()
+        if otp:
+            otp.is_used = True
+        
         db.commit()
     
     return {"status": False}
+
+@app.post("/verify_otp", response_model=OTPVerifyResponse, tags=["Attendance"])
+async def verify_otp(
+    data: OTPVerifyRequest,
+    credentials: dict = Depends(JWTBearer()),
+    db: Session = Depends(database.get_db)
+):
+    """Verify OTP and mark attendance for student. Requires authentication."""
+    
+    # 1. Find the OTP record
+    otp_record = db.query(SessionOTP).filter(
+        SessionOTP.otp_code == data.otp,
+        SessionOTP.is_used == False
+    ).first()
+    
+    if not otp_record:
+        raise HTTPException(status_code=400, detail="Invalid or already used OTP")
+    
+    # 2. Check if OTP is expired
+    if datetime.now() > otp_record.expires_at:
+        raise HTTPException(status_code=400, detail="OTP has expired")
+    
+    # 3. Get the associated session
+    session = db.query(models.AttendanceSession).filter(
+        models.AttendanceSession.id == otp_record.session_id,
+        models.AttendanceSession.section == data.section,
+        models.AttendanceSession.is_active == True
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=400, detail="No active session found for this OTP")
+    
+    # 4. Check if student already marked attendance for this session
+    existing_attendance = db.query(models.AttendanceRecord).filter(
+        models.AttendanceRecord.section == data.section,
+        models.AttendanceRecord.username == data.username,
+        models.AttendanceRecord.subject == session.subject,
+        models.AttendanceRecord.date == datetime.strptime(data.date, "%Y-%m-%d").date()
+    ).first()
+    
+    if existing_attendance:
+        return {
+            "status": True,
+            "subject": session.subject,
+            "message": "Attendance already marked for this session"
+        }
+    
+    # 5. Mark attendance
+    try:
+        dt_date = datetime.strptime(data.date, "%Y-%m-%d").date()
+        dt_time = datetime.strptime(data.time, "%H:%M:%S").time()
+    except:
+        raise HTTPException(status_code=400, detail="Invalid date/time format")
+    
+    new_record = models.AttendanceRecord(
+        section=data.section,
+        username=data.username,
+        subject=session.subject,
+        date=dt_date,
+        time=dt_time,
+        status="Present"
+    )
+    
+    db.add(new_record)
+    # Note: We don't mark OTP as used to allow multiple students to use the same OTP
+    # OTP is only invalidated when session ends or expires
+    db.commit()
+    
+    return {
+        "status": True,
+        "subject": session.subject,
+        "message": "Attendance marked successfully"
+    }
+
 
 @app.get("/get_attendance_records", response_model=List[AttendanceRecordResponse], tags=["Attendance"])
 async def get_attendance_records(
