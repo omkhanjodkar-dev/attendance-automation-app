@@ -16,10 +16,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _username;
   Position? _currentPosition;
   bool _isLoading = false;
-  String _discoveryStatus = "Tap 'Search' to find faculty";
+  String _attendanceStatus = "Ready to mark attendance";
   String? _receivedOTP;
-  String? _discoveredFaculty;
-  bool _isDiscovering = false;
+  bool _isVerifying = false;
   
   final AttendanceService _attendanceService = AttendanceService();
   final NearbyConnectionsService _nearbyService = NearbyConnectionsService();
@@ -42,19 +41,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _receivedOTP = otp;
-          _discoveryStatus = "✅ OTP Received!";
+          _attendanceStatus = "✓ Verification complete";
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("OTP Received: $otp"), backgroundColor: Colors.green),
-        );
+        // Auto-mark attendance when OTP is received
+        Future.delayed(Duration(milliseconds: 500), () {
+          if (mounted && _receivedOTP != null) {
+            _markAttendance();
+          }
+        });
       }
     };
     
     _nearbyService.onEndpointDiscovered = (endpointId, endpointName) {
       if (mounted) {
         setState(() {
-          _discoveredFaculty = endpointName;
-          _discoveryStatus = "Connecting to $endpointName...";
+          _attendanceStatus = "Verifying location...";
         });
       }
     };
@@ -62,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _nearbyService.onConnectionUpdate = (message) {
       if (mounted) {
         setState(() {
-          _discoveryStatus = message;
+          _attendanceStatus = "Verifying location...";
         });
       }
     };
@@ -70,10 +71,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _nearbyService.onError = (error) {
       if (mounted) {
         setState(() {
-          _discoveryStatus = "Error: $error";
+          _isVerifying = false;
+          _attendanceStatus = "Verification failed";
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $error"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Unable to verify location. Please try again."), backgroundColor: Colors.red),
         );
       }
     };
@@ -117,12 +119,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _startDiscovery() async {
+  Future<void> _startAttendanceFlow() async {
     setState(() {
-      _isDiscovering = true;
-      _discoveryStatus = "Searching for nearby faculty...";
+      _isVerifying = true;
+      _attendanceStatus = "Verifying your location...";
       _receivedOTP = null;
-      _discoveredFaculty = null;
     });
 
     final username = _username ?? "Student";
@@ -130,32 +131,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!started) {
       setState(() {
-        _isDiscovering = false;
-        _discoveryStatus = "Failed to start discovery. Check permissions.";
+        _isVerifying = false;
+        _attendanceStatus = "Verification failed. Please check permissions.";
       });
     }
   }
 
-  Future<void> _stopDiscovery() async {
+  Future<void> _stopAttendanceFlow() async {
     await _nearbyService.stopDiscovery();
     setState(() {
-      _isDiscovering = false;
-      _discoveryStatus = "Discovery stopped";
+      _isVerifying = false;
+      _attendanceStatus = "Cancelled";
       _receivedOTP = null;
-      _discoveredFaculty = null;
     });
   }
 
   Future<void> _markAttendance() async {
     if (_receivedOTP == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No OTP received yet"), backgroundColor: Colors.red),
-      );
       return;
     }
 
     setState(() {
       _isLoading = true;
+      _attendanceStatus = "Submitting attendance...";
     });
 
     final now = DateTime.now();
@@ -173,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _isLoading = false;
+        _isVerifying = false;
       });
 
       if (result['status'] == true) {
@@ -188,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _stopDiscovery(); // Stop discovery after successful attendance
+                    _stopAttendanceFlow(); // Stop after successful attendance
                   },
                   child: const Text("OK"),
                 )
@@ -216,9 +215,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
+        _isVerifying = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Unable to mark attendance. Please try again."), backgroundColor: Colors.red),
       );
     }
   }
@@ -271,106 +271,38 @@ class _HomeScreenState extends State<HomeScreen> {
             
             const SizedBox(height: 20),
             
-            // Discovery Card
+            // Attendance Status Card
             Card(
               elevation: 4,
-              color: _isDiscovering ? Colors.blue.shade50 : Colors.white,
+              color: _isVerifying ? Colors.blue.shade50 : Colors.white,
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          _isDiscovering ? Icons.radar : Icons.search,
-                          color: _isDiscovering ? Colors.blue : Colors.grey,
+                          _receivedOTP != null ? Icons.check_circle : 
+                          _isVerifying ? Icons.access_time : Icons.location_on,
+                          color: _receivedOTP != null ? Colors.green : 
+                                 _isVerifying ? Colors.blue : Colors.grey,
+                          size: 32,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _isDiscovering ? "Discovering..." : "Faculty Discovery",
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _attendanceStatus,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[800],
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _discoveryStatus,
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (_discoveredFaculty != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.person, color: Colors.green, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              _discoveredFaculty!,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (_receivedOTP != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green, width: 2),
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              "Received OTP",
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _receivedOTP!,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 4,
-                                color: Colors.green.shade700,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    if (!_isDiscovering)
-                      ElevatedButton.icon(
-                        onPressed: _startDiscovery,
-                        icon: const Icon(Icons.radar),
-                        label: const Text("Start Discovery"),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.all(16),
-                        ),
-                      )
-                    else
-                      OutlinedButton.icon(
-                        onPressed: _stopDiscovery,
-                        icon: const Icon(Icons.stop),
-                        label: const Text("Stop Discovery"),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.all(16),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -379,64 +311,57 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             
             // Mark Attendance Button
-            ElevatedButton(
-              onPressed: _receivedOTP != null && !_isLoading ? _markAttendance : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.all(20),
-                disabledBackgroundColor: Colors.grey.shade300,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : Text(
-                      _receivedOTP != null ? "MARK PRESENT" : "WAITING FOR OTP...",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _receivedOTP != null ? Colors.white : Colors.grey.shade600,
-                      ),
-                    ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Info Card
-            Card(
-              color: Colors.blue.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          "How it works",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "1. Tap 'Start Discovery' to search for your faculty\n"
-                      "2. Connect to the faculty device via Bluetooth/WiFi Direct\n"
-                      "3. OTP will be received automatically\n"
-                      "4. Tap 'Mark Present' to submit attendance",
-                      style: TextStyle(fontSize: 13, height: 1.5),
-                    ),
-                  ],
+            if (!_isVerifying && !_isLoading)
+              ElevatedButton(
+                onPressed: _startAttendanceFlow,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.all(20),
                 ),
+                child: const Text(
+                  "MARK ATTENDANCE",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            else if (_isVerifying || _isLoading)
+              OutlinedButton(
+                onPressed: _stopAttendanceFlow,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(20),
+                ),
+                child: _isLoading
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            "SUBMITTING...",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text(
+                        "CANCEL",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
-            ),
+            
+
           ],
         ),
       ),
