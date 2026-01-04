@@ -9,47 +9,7 @@ class FacultySettingsScreen extends StatefulWidget {
 }
 
 class _FacultySettingsScreenState extends State<FacultySettingsScreen> {
-  final TextEditingController _ssidController = TextEditingController();
-
-  bool _isLoading = false;
   final AttendanceService _attendanceService = AttendanceService();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSSID();
-  }
-
-  Future<void> _loadSSID() async {
-    setState(() => _isLoading = true);
-    // Hardcoded section 'A' for MVP
-    String? ssid = await _attendanceService.getClassSSID("A");
-    setState(() {
-      _ssidController.text = ssid ?? '';
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _saveSSID() async {
-    setState(() => _isLoading = true);
-    // Hardcoded section 'A' for MVP
-    bool success = await _attendanceService.updateClassSSID("A", _ssidController.text.trim());
-    
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Hotspot Name (SSID) saved to cloud successfully')),
-        );
-        Navigator.pop(context, true); 
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save SSID. Network Error.'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,35 +29,161 @@ class _FacultySettingsScreenState extends State<FacultySettingsScreen> {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Enter your device\'s Hotspot Name (SSID) to be used for attendance verification.',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _ssidController,
-              decoration: const InputDecoration(
-                labelText: 'Hotspot Name (SSID)',
-                border: OutlineInputBorder(),
-                hintText: 'e.g. MyClassRoom',
+            // System Info Card
+            Card(
+              elevation: 4,
+              color: Colors.blue.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Nearby Connections System',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'This app uses Google\'s Nearby Connections API for proximity-based attendance marking via Bluetooth and WiFi Direct.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _saveSSID,
-                child: _isLoading 
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Save to Cloud'),
+            
+            // How It Works Card
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.school, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'How to Start a Session',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildStepTile(1, 'Select your class from the dashboard'),
+                    _buildStepTile(2, 'Tap "Start Attendance"'),
+                    _buildStepTile(3, 'OTP is generated automatically'),
+                    _buildStepTile(4, 'Students connect and receive OTP'),
+                    _buildStepTile(5, 'Tap "Stop" when attendance is complete'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // System Details Card
+            Card(
+              elevation: 4,
+              color: Colors.green.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.settings, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'System Features',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildFeatureTile(Icons.timer, 'OTP expires after 10 minutes'),
+                    _buildFeatureTile(Icons.group, 'Handles up to 8 students at once'),
+                    _buildFeatureTile(Icons.security, 'Secure OTP validation'),
+                    _buildFeatureTile(Icons.check_circle, 'Duplicate prevention'),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info, color: Colors.amber.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Ensure Bluetooth & Location are enabled before starting!',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+  
+  Widget _buildStepTile(int number, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.green.shade700,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '$number',
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildFeatureTile(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.green.shade700),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
+        ],
       ),
     );
   }

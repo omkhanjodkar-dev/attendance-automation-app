@@ -44,7 +44,7 @@ dependencies:
   http: ^1.2.0
   wifi_scan: ^0.4.1
   # Nearby Connections for proximity-based attendance
-  nearby_connections: ^3.2.0
+  nearby_connections: ^4.3.0
     
 
   # The following adds the Cupertino Icons font to your application.

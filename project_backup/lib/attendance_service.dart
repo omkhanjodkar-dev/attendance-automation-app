@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';  // VULN-019: For connectivity check
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -176,6 +177,19 @@ class AttendanceService {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     };
+  }
+  
+  // VULN-019: Check network connectivity
+  Future<bool> _checkConnectivity() async {
+    try {
+      final result = await InternetAddress.lookup('google.com').timeout(
+        Duration(seconds: 3),
+        onTimeout: () => [],
+      );
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _handleUnauthorized(http.Response response) async {
@@ -357,6 +371,14 @@ class AttendanceService {
     required String date,
     required String time,
   }) async {
+    // VULN-019: Check connectivity first
+    if (!await _checkConnectivity()) {
+      return {
+        'status': false,
+        'message': '📡 No internet connection. Please check your network and try again.',
+      };
+    }
+    
     final url = Uri.parse("$_resourceBaseUrl/verify_otp");
     final headers = await _getAuthHeaders();
     

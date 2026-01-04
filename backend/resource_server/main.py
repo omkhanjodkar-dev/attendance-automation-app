@@ -275,12 +275,13 @@ async def stop_attendance_session(
     if session:
         session.is_active = False
         
-        # Mark associated OTP as used/expired
-        otp = db.query(SessionOTP).filter(
+        # VULN-015: Mark ALL associated OTPs as used/expired
+        otps = db.query(SessionOTP).filter(
             SessionOTP.session_id == session.id,
             SessionOTP.is_used == False
-        ).first()
-        if otp:
+        ).all()
+        
+        for otp in otps:
             otp.is_used = True
         
         db.commit()
@@ -294,6 +295,18 @@ async def verify_otp(
     db: Session = Depends(database.get_db)
 ):
     """Verify OTP and mark attendance for student. Requires authentication."""
+    
+    # VULN-023: Validate student exists
+    student = db.query(models.Student).filter(
+        models.Student.username == data.username,
+        models.Student.section == data.section
+    ).first()
+    
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Student '{data.username}' not found in section {data.section}"
+        )
     
     # 1. Find the OTP record
     otp_record = db.query(SessionOTP).filter(

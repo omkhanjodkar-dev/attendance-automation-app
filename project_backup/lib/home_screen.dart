@@ -73,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _discoveryStatus = "Error: $error";
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $error"), backgroundColor Colors.red),
+          SnackBar(content: Text("Error: $error"), backgroundColor: Colors.red),
         );
       }
     };
@@ -106,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        desiredAccuracy: LocationAccuracy.high,
       );
       
       setState(() {
